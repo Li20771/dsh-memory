@@ -1,0 +1,96 @@
+{
+  "mode": "warm",
+  "indexReadyMs": 1600,
+  "snapshots": {
+    "afterStartup": {
+      "app.json": {
+        "mtimeMs": 1792723816476,
+        "bytes": 59
+      },
+      "appearance.json": {
+        "mtimeMs": 1792723816495,
+        "bytes": 2
+      },
+      "core-plugins.json": {
+        "mtimeMs": 1792723816145,
+        "bytes": 696
+      },
+      "workspace.json": {
+        "mtimeMs": 1792723817034,
+        "bytes": 4849
+      }
+    },
+    "afterSetConfig": {
+      "app.json": {
+        "mtimeMs": 1792723816476,
+        "bytes": 59
+      },
+      "appearance.json": {
+        "mtimeMs": 1792723816495,
+        "bytes": 2
+      },
+      "core-plugins.json": {
+        "mtimeMs": 1792723816145,
+        "bytes": 696
+      },
+      "workspace.json": {
+        "mtimeMs": 1792723817034,
+        "bytes": 4849
+      }
+    },
+    "afterOpenFile": {
+      "app.json": {
+        "mtimeMs": 1792723816476,
+        "bytes": 59
+      },
+      "appearance.json": {
+        "mtimeMs": 1792723816495,
+        "bytes": 2
+      },
+      "core-plugins.json": {
+        "mtimeMs": 1792723816145,
+        "bytes": 696
+      },
+      "workspace.json": {
+        "mtimeMs": 1792723820028,
+        "bytes": 4965
+      }
+    },
+    "afterDisablePlugin": {
+      "app.json": {
+        "mtimeMs": 1792723816476,
+        "bytes": 59
+      },
+      "appearance.json": {
+        "mtimeMs": 1792723816495,
+        "bytes": 2
+      },
+      "core-plugins.json": {
+        "mtimeMs": 1792723816145,
+        "bytes": 696
+      },
+      "workspace.json": {
+        "mtimeMs": 1792723820028,
+        "bytes": 4965
+      }
+    }
+  },
+  "stepDiffs": {
+    "setConfig": [],
+    "openFile": [
+      "workspace.json"
+    ],
+    "disablePlugin": []
+  },
+  "contents": {
+    "app.json": "{\n  \"showLineNumber\": true,\n  \"readableLineLength\": false\n}",
+    "appearance.json": "{}",
+    "workspace.json.head": "{\n  \"main\": {\n    \"id\": \"79ca26d73d766824\",\n    \"type\": \"split\",\n    \"children\": [\n      {\n        \"id\": \"879c031db910e226\",\n        \"type\": \"tabs\",\n        \"ch"
+  },
+  "allFiles": [
+    "app.json",
+    "appearance.json",
+    "core-plugins.json",
+    "workspace.json"
+  ]
+}

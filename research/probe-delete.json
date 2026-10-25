@@ -1,0 +1,72 @@
+{
+  "before": {
+    "trashOption": "system",
+    "resolvedNote": [],
+    "unresolvedLinks": {},
+    "hasNote": true,
+    "resolveNote": "Note.md"
+  },
+  "delete": {
+    "delMs": 1888,
+    "stillThere": false,
+    "resolveNote": null,
+    "resolvedNoteKeys": [
+      "a/Index.md",
+      "b/Index.md",
+      "中文 笔记.md",
+      "Blocks.md"
+    ],
+    "unresolvedLinks": {
+      "Note": 9,
+      "NOTE": 1,
+      "Does Not Exist": 1
+    },
+    "vaultFiles": [],
+    "allTop": [
+      "Big.md",
+      "Blocks.md",
+      "CRLF.md",
+      "Frontmatter.md",
+      "Headings.md",
+      "Hub.md",
+      "Links.md",
+      "Map.canvas",
+      "中文 笔记.md",
+      ".obsidian/app.json",
+      ".obsidian/appearance.json",
+      ".obsidian/core-plugins.json",
+      ".obsidian/workspace.json",
+      "a/Index.md",
+      "attachments/min.pdf",
+      "attachments/pixel.png",
+      "b/Index.md"
+    ]
+  },
+  "graph": {
+    "nodeKeys": [
+      "Big.md",
+      "Note",
+      "Blocks.md",
+      "CRLF.md",
+      "Frontmatter.md",
+      "Headings.md",
+      "Hub.md",
+      "Links.md",
+      "NOTE",
+      "Does Not Exist",
+      "Map.canvas",
+      "中文 笔记.md",
+      "a/Index.md",
+      "b/Index.md"
+    ],
+    "noteGhost": [
+      "Note",
+      "NOTE"
+    ]
+  },
+  "disk": {
+    "trashDir": false,
+    "entries": [],
+    "noteStillInVault": false
+  }
+}

@@ -1,0 +1,36 @@
+
+
+##### canvas node type switch
+--- @3328849
+ay.isArray(i))return[2,null];r=[],o={},a=this.refNodeIds,s=function(e){var t,n,i;return b(this,(function(s){switch(s.label){case 0:return"file"!==e.type?[3,1]:(r.push({file:e.file,subpath:e.subpath}),[3,6]);case 1:return"group"===e.type&&e.background?(r.push({file:e.background,subpath:""}),[3,6]):[3,2];case 2:if("text"!==e.type)return[3,6];t=e.text,s.label=3;case 3:return s.trys.push([3,5,,6]),[4,l.parseText(t)];case 4:return CD(n=s.sen
+--- @3328849
+ay.isArray(i))return[2,null];r=[],o={},a=this.refNodeIds,s=function(e){var t,n,i;return b(this,(function(s){switch(s.label){case 0:return"file"!==e.type?[3,1]:(r.push({file:e.file,subpath:e.subpath}),[3,6]);case 1:return"group"===e.type&&e.background?(r.push({file:e.background,subpath:""}),[3,6]):[3,2];case 2:if("text"!==e.type)return[3,6];t=e.text,s.label=3;case 3:return s.trys.push([3,5,,6]),[4,l.parseText(t)];case 4:return CD(n=s.sen
+--- @3328849
+ay.isArray(i))return[2,null];r=[],o={},a=this.refNodeIds,s=function(e){var t,n,i;return b(this,(function(s){switch(s.label){case 0:return"file"!==e.type?[3,1]:(r.push({file:e.file,subpath:e.subpath}),[3,6]);case 1:return"group"===e.type&&e.background?(r.push({file:e.background,subpath:""}),[3,6]):[3,2];case 2:if("text"!==e.type)return[3,6];t=e.text,s.label=3;case 3:return s.trys.push([3,5,,6]),[4,l.parseText(t)];case 4:return CD(n=s.sen
+[shown=3]
+
+
+##### canvas node ctor attrs
+--- @2346
++=m,v++}}},470:(e,t,n)=>{"use strict";var i=n(3115);e.exports=a,a.locator=i;var r="\n",o="\\";function a(e,t,n){var i,a;if(t.charAt(0)===o&&(i=t.charAt(1),-1!==this.escape.indexOf(i)))return!!n||(a=i===r?{type:"break"}:{type:"text",value:i},e(o+i)(a))}},493:e=>{"use strict";function t(e){if(null==e)return n;if("string"==typeof e)return function(e){return t;function t(t){return Boolean(t&&t.type===e)}}(e);if("object"==typeof e)return"len
+--- @46242
+enizers,o=-1,h=t.length;for(;++o<a;)"text"!==(u=i[o])&&r[u]&&((c=r[u].locator)||e.file.fail("Missing locator: `"+u+"`"),-1!==(l=c.call(d,t,1))&&l<h&&(h=l));s=t.slice(0,h),p=e.now(),d.decode(s,p,(function(t,n,i){e(i||t)({type:"text",value:t})}))}},4472:e=>{"use strict";e.exports=JSON.parse('{"AElig":"Æ","AMP":"&","Aacute":"Á","Acirc":"Â","Agrave":"À","Aring":"Å","Atilde":"Ã","Auml":"Ä","COPY":"©","Ccedil":"Ç","ETH":"Ð","Eacute":"É","Ecir
+--- @201164
+w k(r),i&&n&&i.indent){if(o=i.indent,a<s){for(;++a<s;)o.push((p[a]||0)+1);o.push(e.column)}n=o.concat(n)}return t.position.indent=n||[],t}}function M(e,r){var o=r?r.children:d,a=o[o.length-1];return a&&e.type===a.type&&("text"===e.type||"blockquote"===e.type)&&t(a)&&t(e)&&(e=("text"===e.type?n:i).call(h,a,e)),e!==a&&o.push(e),e}function S(e){var t=b(),n=E(),i=w();C(e),a.reset=s,s.test=l,a.test=l,r=r.slice(e.length),y(e);let o=h.atStart;
+[shown=3]
+
+
+##### resolvedLinks consumers
+--- @1626064
+description:"Include link counts"},total:{description:"Return backlink count"},format:{value:"json|tsv|csv",description:"Output format (default: tsv)"}},(function(t){var n=e.tryResolveFile(t).path,i=o.resolvedLinks,r=[];for(var a in i)Object.hasOwn(i,a)&&Object.hasOwn(i[a],n)&&r.push({path:a,count:i[a][n]});if(t.total){var s=r.reduce((function(e,t){return e+t.count}),0);return String(s)}if(0===r.l
+--- @1627696
+able(m,g,t.format)})),this.registerHandler("orphans","List files with no incoming links",{total:{description:"Return orphan count"},all:{description:"Include non-markdown files"}},(function(e){var t=o.resolvedLinks,n=new Set;for(var i in t)if(Object.hasOwn(t,i)){var a=t[i];for(var s in a)Object.hasOwn(a,s)&&n.add(s)}for(var l=[],c=0,u=r.getFiles();c<u.length;c++){var h=u[c];n.has(h.path)||l.push(h
+--- @1628183
+.join("\n")})),this.registerHandler("deadends","List files with no outgoing links",{total:{description:"Return dead-end count"},all:{description:"Include non-markdown files"}},(function(e){for(var t=o.resolvedLinks,n=[],i=0,a=r.getFiles();i<a.length;i++){var s=a[i],l=t[s.path];l&&0!==Object.keys(l).length||n.push(s.path)}return e.total?String(n.length):0===n.length?"No dead-end files found.":n.sor
+--- @1737962
+skCount=0,i.db=null,i.fileCache={},i.metadataCache={},i.workQueue=new Iw,i.uniqueFileLookup=new _d,i.didFinish=Ml((function(){return i.trigger("finished")}),10,!0),i.initialized=!1,i.linkUpdaters={},i.resolvedLinks={},i.unresolvedLinks={},i.linkResolverQueue=null,i.onCleanCacheCallbacks=[],i.workerResolve=null,i.userIgnoreFilters=null,i.userIgnoreFiltersString="",i.userIgnoreFilterCache={},i.app=t
+[shown=4]
+
+
+##### graph link building
+[shown=0]

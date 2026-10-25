@@ -1,0 +1,30 @@
+{
+  "name": "dsh-memory",
+  "version": "1.0.0",
+  "description": "Governed persistent memory for the DeepSeek Harness: four scoped layers (positioning / workspace map / workflow / episode), write admission, anti-echo source families, episode harvest-and-destroy lifecycle, revision-pinned citations with sentence-level location, optional widen-only semantic recall. Zero runtime dependencies.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "memory",
+    "agent-memory",
+    "long-term-memory"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

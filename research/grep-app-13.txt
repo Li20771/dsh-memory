@@ -1,0 +1,44 @@
+
+
+##### graph colorGroups  RE:colorGroups
+--- @2693583
+Orphans").onChange((function(e){t.options.showOrphans=e,t.render(),t.onOptionsChange()}))})),i}return v(t,e),t.prototype.startSearch=function(){this.searchSetting.settingEl.addClass("is-loading")},t.prototype.stopSearch=function(){this.searchSetting.settingEl.removeClass("is-loading")},t.prototype.setDefaultOptions=function(){this.setOptions(a$)},t}(p0),f0=function(e){function t(t){var n=e.call(this,t,"color-groups",i0.labelGroups())||this;return t.controlsEl.appendChild(n.el),n.optionListeners.colorGroups=function(e){return Array.isArray(e)&&(n.setColorQueries(e),n.engine.requestUpdateSearch()),n.getColoredQueries()},n.setColorQueries([]),n}return v(t,e),t.prototype.getColoredQueries=function(){for(var e=[],t=0,n=this.groups;t<n.length;t++){var i=n[t];e.push({query:i.query.getValue(),color:{a:1,rgb:i.color.getValueInt()}})}return e},t.prototype.setColorQueries=function(e){var t=this,n=this.childrenEl;n.empty();for(var i=[],r=n.createDiv({cls:"graph-color-groups-container"}),o=function
+[shown=1]
+
+
+##### graph plugin id  RE:getEnabledPluginById\("graph"\)|"graph"
+--- @1521509
+I(i.app);i.insertChild(a,l),l.openLinkText(t.linktext,t.sourcePath,{active:!0})}}else if("bookmarks"===t.type){var c=i.app.internalPlugins.getEnabledPluginById("bookmarks"),u=t.items.map((function(e){return e.item})).filter((function(e){return"file"===e.type||"graph"===e.type}));if(c){if(null!==s){if(1!==u.length)return;if((l=i.children[s]).canNavigate())return n||(i.workspace.setActiveLeaf(l),c.openBookmarkInLeaf(u[0],l,{active:!0})),{hoverEl:l.tabHeaderEl,hoverClass:"is-highlighted",action:bd.interface.dragAndDro
+--- @1543584
+",r,this)),r.setParentElement(t)},t.prototype.handleDrop=function(e,t,n){if("bookmarks"===t.type){var i=this.app.internalPlugins.getEnabledPluginById("bookmarks");if(i){var r=t.items.map((function(e){return e.item})).filter((function(e){return"file"===e.type||"graph"===e.type}));if(1!==r.length)return;n||i.openBookmarkInLeaf(r[0],this,{active:!0})}return{action:bd.interface.dragAndDrop.openInThisTab(),dropEffect:"move"}}if("file"===t.type||"link"===t.type)return n||(this.workspace.setActiveLeaf(this),"file"===t.typ
+--- @2672321
+aves(this.leaf.group);t<n.length;t++){var i=n[t];if(i!==this.leaf&&i.view instanceof xI){this.leaf.openFile(i.view.file);break}}else{var r=this.leaf.workspace.getActiveFile();this.loadFile(r)}},t}(xI),i0=bd.plugins.graphView,r0=function(){function e(){this.id="graph",this.name=i0.name(),this.description=i0.desc(),this.defaultOn=!0}return e.prototype.init=function(e,t){var n=this;this.app=e,this.plugin=t,t.registerRibbonItem(i0.actionOpen(),"lucide-git-fork",this.openGraphView.bind(this)),t.registerGlobalCommand({id
+--- @2673476
+ y(this,void 0,void 0,(function(){var n;return b(this,(function(i){switch(i.label){case 0:return t.registerEvent(e.workspace.on("file-menu",this.onFileMenu,this)),n=this,[4,t.loadData()];case 1:return n.options=i.sent()||{},e.workspace.registerHoverLinkSource("graph",{display:this.name,defaultMod:!0}),[2]}}))}))},e.prototype.onDisable=function(e){e.workspace.unregisterHoverLinkSource("graph")},e.prototype.onExternalSettingsChange=function(){return y(this,void 0,void 0,(function(){var e;return b(this,(function(t){sw
+[shown=4]
+
+
+##### exclusive flag use  RE:\.exclusive\b
+--- @1425456
+)}function hP(e){var t=e.tokens[e.pos];if(!t)return null;var n=t.type,i=t.content;if("text"===n&&e.pos<e.tokens.length-1&&"colon"===e.tokens[e.pos+1].type&&!e.operatorStack.contains("[")){var r=t,o=i.toLowerCase(),a=e.operators[o];if(!a)throw new Error('Operator "'.concat(o,'" not recognized'));if(a.exclusive)for(var s=0,l=e.operatorStack;s<l.length;s++){var c=l[s],u=e.operators[c];if(u.exclusive&&(!u.allowSelf||c!==o))throw new Error('Operator "'.concat(o,'" cannot be nested within "').concat(c,'"'))}e.operatorStack.push(o),e.pos++;var h=e.tokens[e.pos];e.pos++;var p=hP(e);return e.operatorSt
+--- @1425545
+t"===n&&e.pos<e.tokens.length-1&&"colon"===e.tokens[e.pos+1].type&&!e.operatorStack.contains("[")){var r=t,o=i.toLowerCase(),a=e.operators[o];if(!a)throw new Error('Operator "'.concat(o,'" not recognized'));if(a.exclusive)for(var s=0,l=e.operatorStack;s<l.length;s++){var c=l[s],u=e.operators[c];if(u.exclusive&&(!u.allowSelf||c!==o))throw new Error('Operator "'.concat(o,'" cannot be nested within "').concat(c,'"'))}e.operatorStack.push(o),e.pos++;var h=e.tokens[e.pos];e.pos++;var p=hP(e);return e.operatorStack.pop(),p||(p=new tP("")),(d=a.operate(p)).matchedTokens.push(r),d.matchedTokens.push(h
+[shown=2]
+
+
+##### property types registry  RE:getAllPropertyInfos|"multitext"|"checkbox"
+--- @219765
+n){var a,s,l,c=r(e,t),u=c[0],h=n?function(e){var t=e.spread,n=e.children,i=n.length,r=-1;for(;!t&&++r<i;)t=o(n[r]);return t}(n):o(t),p={},d=[];"boolean"==typeof t.checked&&(u&&"p"===u.tagName||(u=e(null,"p",[]),c.unshift(u)),u.children.length>0&&u.children.unshift(i("text"," ")),u.children.unshift(e(null,"input",{type:"checkbox",checked:t.checked,disabled:!0})),p.className=["task-list-item"]);a=c.length,s=-1;for(;++s<a;)l=c[s],(h||0!==s||"p"!==l.tagName)&&d.push(i("text","\n")),"p"!==l.tagName||h?d.push(l):d=d.concat(l.children);a&&(h||"p"!==l.tagName)&&d.push(i("text","\n"));return e(t,"li",p,d)};var i=n(9650),r=n(4297);function o(
+--- @1070682
+f&&(o=Math.max(m,o-p)),b.top=o+2+"px",Em(this.scrollEl),c.style.opacity="0.85"}return fy=this,this}var k=t.win,C=function(e){for(var t=[],n=function(e){if(e instanceof py){var n={label:e.titleEl.getText().replace(/\B&\B/,"&&"),enabled:!e.disabled&&!e.dom.hasClass("is-label"),checked:e.checked,type:isBoolean(e.checked)?"checkbox":void 0,click:function(t,n,i){return e.handleEvent(new MouseEvent("click",i))}};e.submenu&&(e.submenu.sort(),n.submenu=C(e.submenu.items)),t.push(n)}else e instanceof dy&&t.push({type:"separator"})},i=0,r=e;i<r.length;i++){n(r[i])}return t},E=C(this.items),M=k.electron.remote.Menu.buildFromTemplate(E);M.on("m
+--- @1091332
+,type:"radio"},{appCommand:"editor:set-heading-5",label:e.setHeading({level:5}),type:"radio"},{appCommand:"editor:set-heading-6",label:e.setHeading({level:6}),type:"radio"},{appCommand:"editor:set-heading-0",label:e.noHeading(),type:"radio"},{type:"separator"},{appCommand:"editor:toggle-bold",label:e.toggleBold(),type:"checkbox"},{appCommand:"editor:toggle-italics",label:e.toggleItalics(),type:"checkbox"},{appCommand:"editor:toggle-code",label:e.toggleCode(),type:"checkbox"},{appCommand:"editor:toggle-highlight",label:e.toggleHighlight(),type:"checkbox"},{type:"separator"},{appCommand:"editor:toggle-strikethrough",label:e.toggleStri
+--- @1091409
+}),type:"radio"},{appCommand:"editor:set-heading-6",label:e.setHeading({level:6}),type:"radio"},{appCommand:"editor:set-heading-0",label:e.noHeading(),type:"radio"},{type:"separator"},{appCommand:"editor:toggle-bold",label:e.toggleBold(),type:"checkbox"},{appCommand:"editor:toggle-italics",label:e.toggleItalics(),type:"checkbox"},{appCommand:"editor:toggle-code",label:e.toggleCode(),type:"checkbox"},{appCommand:"editor:toggle-highlight",label:e.toggleHighlight(),type:"checkbox"},{type:"separator"},{appCommand:"editor:toggle-strikethrough",label:e.toggleStrikethrough(),type:"checkbox"},{appCommand:"editor:toggle-inline-math",label:e.
+[shown=4]
+
+
+##### canvas validation  RE:Invalid canvas|canvas.*parse|parseCanvas|"fromNode"
+--- @712665
+-n),c=Math.max(0,s-i),u=function(e,t,n,i,r){if(t>=e&&n<=e+i)return e;var o=t,a=n-i,s=Math.abs(o-e)<=Math.abs(a-e)?o:a;return Math.clamp(s,0,r)},h=u(r,t.left,t.right,n,l),p=u(o,t.top,t.bottom,i,c);h===r&&p===o||e.scrollTo({left:h,top:p,behavior:"auto"})}for(var Sm=new Map,xm=0,Tm="a abbr acronym b bdi bdo big br button canvas cite code data del dfn em embed i iframe img input ins kbd label map mark meter noscript object outputpicture progress q ruby s samp select small span strong sub sup svg textarea time u tt var video wbr".split(" ");xm<Tm.length;xm++){var Dm=Tm[xm];Sm.set(Dm,!0)}for(var Am=0,Pm="address article aside blockquote d
+[shown=1]

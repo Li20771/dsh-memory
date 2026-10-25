@@ -1,0 +1,16 @@
+
+
+##### SP= section NOT FOUND
+
+
+
+##### CP= block @1431267
+("\n");r<o.length;r++){var a=o[r];n(a,i),i=i+a.length+1}}))}},t.prototype.getInfo=function(){return bd.plugins.search.labelMatchLine()},t.prototype.requiredInputs=function(){return{content:!0}},t}(wP),CP=function(e){function t(){return null!==e&&e.apply(this,arguments)||this}return v(t,e),t.prototype.match=function(e){if(e.strings.hasOwnProperty("content")){var t=e.cache;if(!t)return null;var n=e.strings.content;return this.splitContentMatch(e,(function(e,i){if(t.sections)for(var r=0,o=t.sections;r<o.length;r++){var a=o[r];if("list"!==a.type){var s=(h=a.position).start.offset,l=h.end.offset;i(n.substring(s,l),s)}}if(t.listItems)for(var c=0,u=t.listItems;c<u.length;c++){var h;s=(h=u[c].position).start.offset,l=h.end.offset;i(n.substring(s,l),s)}}))}},t.prototype.getInfo=function(){return bd.plugins.search.labelMatchBlock()},t.prototype.requiredInputs=function(){return{content:!0}},t}(wP),EP=new HA,MP=new HA;var SP=function(e){function t(){return null!==e&&e.apply(this,arguments)||this}return v(t,e),t.prototype.match=function(e){if(e.strings.hasOwnProperty("content")){var t=e.cache;if(
+
+
+##### ZA= regex matcher NOT FOUND
+
+
+
+##### G7= canvas link @3305877
+text)},t.prototype.onMarkdownFold=function(){var e="preview"===this.getMode()?this.previewMode.renderer.getFoldInfo():this.editMode.getFoldInfo();this.app.foldManager.savePath(this.linktext,e)},t}(i1),G7=function(e){function t(){var t=null!==e&&e.apply(this,arguments)||this;return t.url="",t.alwaysKeepLoaded=!0,t}return v(t,e),t.prototype.getData=function(){return m(m({},e.prototype.getData.call(this)),{type:"link",url:this.url})},t.prototype.setData=function(t){e.prototype.setData.call(this,t);var n=t.url;n&&this.setUrl(n)},t.prototype.setUrl=function(e){this.url!==e&&(this.url=e,this.canvas.markDirty(this),this.setFrameUrl())},t.prototype.recreateFrame=function(){var e,t=this;if(this.frameEl&&this.frameEl.detach(),rd.isDesktopApp){var n=this.contentEl,i=n.doc,r=i.createElement("webview"),o=this.app.getWebviewPartition();electron.ipcRenderer.send("create-browser-session",o,null),r.parti

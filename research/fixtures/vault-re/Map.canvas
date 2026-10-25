@@ -1,0 +1,31 @@
+{
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "text",
+      "text": "Note",
+      "x": 0,
+      "y": 0,
+      "width": 250,
+      "height": 60
+    },
+    {
+      "id": "n2",
+      "type": "file",
+      "file": "Note.md",
+      "x": 300,
+      "y": 0,
+      "width": 250,
+      "height": 60
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "fromNode": "n1",
+      "fromSide": "right",
+      "toNode": "n2",
+      "toSide": "left"
+    }
+  ]
+}

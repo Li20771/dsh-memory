@@ -1,0 +1,20 @@
+
+
+##### SP section matcher NOT FOUND
+
+
+
+##### CP block matcher NOT FOUND
+
+
+
+##### regex token compile @1426463
+=n&&"["===i){if(e.operatorStack.contains("["))throw new Error("Property cannot be nested within a property.");e.operatorStack.push(i),e.pos++;var d=function(e){var t=cP(e);t||(t=new tP(""));var n=null,i=[];if(dP(e,"colon")){var r=e.tokens[e.pos];e.operatorStack.push(r.content),i.push(r),e.pos++,n=cP(e),e.operatorStack.pop()}var o=new JA(t,n);return o.matchedTokens=i,o}(e);return d.matchedTokens.push(t),e.operatorStack.pop(),dP(e,"bracket")&&d.eatToken(e),d}if("bracket"===n&&"]"===i)return null;if("text"===n)return(d=new tP(i)).eatToken(e),d;if("quote"===n)return(d=new eP(i)).eatToken(e),d;if("regex"===n){try{new RegExp(i)}catch(e){throw console.error(e),new Error("Failed to parse regular expression. ".concat(e.message))}return(d=new ZA(i)).eatToken(e),d}if("parenthesis"===n&&"("===i){e.pos++;var d=function(e){var t=cP(e);if(e.pos<e.tokens.length){var n=e.tokens[e.pos],i=n.type,r=n.content;"parenthesis"===i&&")"===r&&(t&&t.matchedTokens.push(n),e.pos++)}return t}(e);return d||(d=new tP("")),d.matchedTokens.push(t),d}if("parenthesis"===n&&")"===i)return null;if("or"===n)return null;if("false"===n||"true"===n||"empty"===n)return(d=new _A(i)).eatToken(e),d;if("colon"===n)return null;if
+
+
+##### G7 canvas link node NOT FOUND
+
+
+
+##### Bl path normalize @547121
+ndexOf("/");return-1===t?"":e.slice(0,t)}function Il(e){for(;e;){if(Al(e).startsWith("."))return!0;e=Pl(e)}return!1}function Ll(e){var t=Al(e),n=t.lastIndexOf(".");return-1===n||n===t.length-1||0===n?t:t.substr(0,n)}function Ol(e){var t=e.lastIndexOf(".");return-1===t||t===e.length-1||0===t?e:e.substr(0,t)}function Fl(e){var t=e.lastIndexOf(".");return-1===t||t===e.length-1||0===t?"":e.substr(t+1).toLowerCase()}function Rl(e,t){return t?e+"."+t:e}function Nl(e){return Dl(Bl(e)).normalize("NFC")}function Bl(e){return""===(e=e.replace(/([\\/])+/g,"/").replace(/(^\/+|\/+$)/g,""))&&(e="/"),e}function Vl(e){var t=Al(e);return"md"===Fl(t)?Ll(t):t}function Hl(e){return"md"===Fl(Al(e))?Ol(e):e}var zl={"image/avif":"avif","image/bmp":"bmp","image/gif":"gif","image/jpeg":"jpg","image/pict":"pict","image/png":"png","image/svg+xml":"svg","image/tiff":"tiff","image/webp":"webp","audio/mp3":"mp3","audio/wav":"wav","audio/m4a":"m4a","audio/3gp":"3gp","audio/flac":"flac","audio/ogg":"opus","video/mp4"
