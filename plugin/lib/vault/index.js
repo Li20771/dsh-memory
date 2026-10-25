@@ -113,6 +113,11 @@ export class VaultIndex {
           stack.push(childRel)
         } else if (entry.isFile()) {
           if (!entry.name.toLowerCase().endsWith('.md')) continue
+          // A README at the VAULT ROOT is repository documentation, not memory: it has
+          // no type, no scope, and recalling "这里放什么" as if it were a research note
+          // is noise. Project-level `projects/<slug>/README.md` is real content (typed
+          // `project`) and stays indexed.
+          if (rel === '' && entry.name.toLowerCase() === 'readme.md') continue
           out.push(childRel)
         }
       }

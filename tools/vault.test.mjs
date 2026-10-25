@@ -130,8 +130,23 @@ test('blocks: heading / blockquote / table kinds', () => {
   assert.equal(note.blocks.find((b) => b.id === 't1').kind, 'table')
 })
 
-test('blocks: ids are case-insensitive and duplicates keep the first', () => {
-  const note = parseNote('a ^DUP\n\nb ^dup')
+test('index: a vault-root README is documentation, not memory', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-readme-'))
+  try {
+    await writeFile(join(root, 'README.md'), '# 记忆库\n\n这个仓库放记忆内容。\n', 'utf8')
+    await mkdir(join(root, 'projects', 'p1'), { recursive: true })
+    await writeFile(join(root, 'projects', 'p1', 'README.md'), '---\ntype: project\n---\n# P1\n\n项目简介。\n', 'utf8')
+    const index = new VaultIndex(root)
+    await index.rebuild()
+    const paths = index.paths()
+    assert.ok(!paths.includes('README.md'), '根 README 是仓库说明，不该被当成记忆索引')
+    assert.ok(paths.includes('projects/p1/README.md'), '项目级 README 是真内容（type: project），必须索引')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('blocks: ids are case-insensitive and duplicates keep the first', () => {  const note = parseNote('a ^DUP\n\nb ^dup')
   assert.equal(note.blocks.length, 1)
   // The id is stored AS WRITTEN (Obsidian keeps the original and only lowercases
   // the cache key); comparison is what is case-insensitive.
