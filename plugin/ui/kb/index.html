@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN" data-state-loading="1">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>记忆库 · 知识库只读视图</title>
+  <link rel="stylesheet" href="app.css">
+  <!--
+    契约单真源：plugin/ui-contract.json（只读）。
+    页面在运行时同源相对取一次；下面的路由字面量只是为了可离线对照，
+    一旦与 ui-contract.json 不一致，tools/kb-page-smoke.mjs 会判失败。
+    prefix         /dsh-memory
+    panel.overview /panel/overview
+    panel.workflow /panel/workflow
+    kb.page        /kb/
+    kb.open        /kb/open
+    kb.tree        /kb/api/tree
+    kb.note        /kb/api/note
+    kb.resolve     /kb/api/resolve
+    kb.search      /kb/api/search
+  -->
+</head>
+<body>
+  <div class="kb-app" id="kb-app">
+
+    <header class="kb-topbar">
+      <div class="kb-brand">
+        <span class="kb-brand-mark" aria-hidden="true">◆</span>
+        <h1>记忆库</h1>
+        <span class="kb-readonly-chip" title="本页面只有 GET 请求，没有任何写入入口">只读</span>
+        <span class="kb-contract-chip" id="kb-contract-chip" title="路由字面量来自 plugin/ui-contract.json">契约加载中…</span>
+      </div>
+      <div class="kb-topbar-end">
+        <span class="kb-contract-chip" id="kb-theme-chip" hidden title="平台主题变量探测">降级：平台主题变量未注入</span>
+        <span class="kb-vault" id="kb-vault" title="vault 根目录">…</span>
+      </div>
+    </header>
+
+    <div class="kb-global-error" id="kb-global-error" role="alert" hidden></div>
+
+    <div class="kb-cols" id="kb-cols">
+
+      <nav class="kb-pane kb-left" id="kb-tree-pane" aria-labelledby="kb-tree-title">
+        <header class="kb-pane-head">
+          <h2 class="kb-pane-title" id="kb-tree-title">笔记树</h2>
+          <span class="kb-count" id="kb-tree-count">—</span>
+        </header>
+        <div class="kb-search">
+          <label class="kb-visually-hidden" for="kb-search-input">搜索笔记（句子级命中）</label>
+          <input id="kb-search-input" type="search" class="kb-search-input" placeholder="搜索：标签 前缀 / 词 …" autocomplete="off" spellcheck="false">
+          <p class="kb-search-hint">支持 <code>tag:</code> <code>type:</code> <code>scope:</code> <code>path:</code> 前缀</p>
+        </div>
+        <div class="kb-tagbar" id="kb-tree-tags" role="group" aria-label="标签筛选"></div>
+        <div id="kb-tree-body" class="kb-tree-body">
+          <div class="kb-empty" id="kb-tree-empty">加载中…</div>
+        </div>
+        <footer class="kb-pane-foot" id="kb-tree-foot"></footer>
+      </nav>
+
+      <main class="kb-pane kb-center" id="kb-main-pane" tabindex="-1" aria-labelledby="kb-main-title">
+        <header class="kb-pane-head kb-note-head">
+          <div class="kb-note-head-main">
+            <h2 class="kb-pane-title" id="kb-main-title">笔记</h2>
+            <p class="kb-note-path" id="kb-note-path"></p>
+          </div>
+          <div class="kb-note-meta" id="kb-note-meta"></div>
+        </header>
+        <div id="kb-note-body" class="kb-note-body" tabindex="0">
+          <div class="kb-empty" id="kb-main-empty">从左栏选择一篇笔记。</div>
+        </div>
+      </main>
+
+      <aside class="kb-pane kb-right" id="kb-backlinks-pane" aria-labelledby="kb-side-title">
+        <header class="kb-pane-head">
+          <h2 class="kb-pane-title" id="kb-side-title">关系与引用</h2>
+        </header>
+        <div id="kb-side-body" class="kb-side-body">
+          <div class="kb-empty">打开一篇笔记后显示反向链接 / 出链 / 标签 / 引用审计。</div>
+        </div>
+      </aside>
+
+    </div>
+
+    <footer class="kb-statusbar">
+      <span id="kb-tree-stats">—</span>
+      <span class="kb-statusbar-sep" aria-hidden="true">·</span>
+      <span id="kb-search-stats">未搜索</span>
+      <span class="kb-statusbar-end" id="kb-legend-host"></span>
+      <noscript class="kb-noscript">本页面需要 JavaScript（零依赖、无构建，源码见同目录 app.js）。</noscript>
+    </footer>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

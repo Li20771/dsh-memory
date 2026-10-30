@@ -1,0 +1,15 @@
+{
+  "prefix": "/dsh-memory",
+  "panel": {
+    "overview": "/panel/overview",
+    "workflow": "/panel/workflow"
+  },
+  "kb": {
+    "page": "/kb/",
+    "open": "/kb/open",
+    "tree": "/kb/api/tree",
+    "note": "/kb/api/note",
+    "resolve": "/kb/api/resolve",
+    "search": "/kb/api/search"
+  }
+}
