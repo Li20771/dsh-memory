@@ -166,7 +166,7 @@ async function fixture(extraConfig = {}) {
   const cwd = join(workspace, 'p1')
   await mkdir(join(vaultRoot, 'workflows'), { recursive: true })
   await mkdir(cwd, { recursive: true })
-  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\n---\n# 定位\n\n契约。\n', 'utf8')
+  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n', 'utf8')
   await writeMarker(workspace, { schema: 1, enabled: true, id: 'ws_demo', coordinators: ['sess_coord'], state: 'active' })
   const harness = makeCtx()
   plugin.apply(harness.ctx, { vaultRoot, fullStatIntervalMs: 0, ...extraConfig })
@@ -209,7 +209,7 @@ test('memory_workflow pin: worker refused, coordinator pins, and a pinned note s
     await mkdir(join(vaultRoot, 'workflows'), { recursive: true })
     await writeFile(
       join(vaultRoot, 'workflows', 'ancient.md'),
-      `---\ntype: workflow\ntitle: 老流程\ncreated: 2020-01-01T00:00:00Z\nstatus: active\n---\n# 老流程\n\n很久没用。\n`,
+      `---\ntype: workflow\ntitle: 老流程\nvisibility: user-global\ncreated: 2020-01-01T00:00:00Z\nstatus: active\n---\n# 老流程\n\n很久没用。\n`,
       'utf8'
     )
 
@@ -297,9 +297,13 @@ test('memory_diagnose flags a note that hardcodes an absolute path', async () =>
   const { base, vaultRoot, cwd, byName } = await fixture()
   try {
     const clean = await byName.get('memory_diagnose').execute({}, { agent: asCoord(cwd) })
-    assert.ok(clean.includes('vault 内容无绝对路径'), clean)
+    assert.ok(clean.includes('授权切片内无绝对路径'), clean)
 
-    await writeFile(join(vaultRoot, 'bad.md'), '参考 C:\\Windows\\system32 下的实现\n', 'utf8')
+    await writeFile(
+      join(vaultRoot, 'bad.md'),
+      '---\ntype: finding\nvisibility: user-global\n---\n参考 C:\\Windows\\system32 下的实现\n',
+      'utf8'
+    )
     const dirty = await byName.get('memory_diagnose').execute({}, { agent: asCoord(cwd) })
     assert.ok(dirty.includes('含绝对路径'), dirty)
     assert.ok(dirty.includes('bad.md'), dirty)

@@ -48,7 +48,7 @@ async function fixture() {
   const cwd = join(workspace, 'p1')
   await mkdir(cwd, { recursive: true })
   await mkdir(vaultRoot, { recursive: true })
-  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\n---\n# 定位\n\n契约。\n', 'utf8')
+  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n', 'utf8')
   await writeMarker(workspace, {
     schema: 1,
     enabled: true,
@@ -69,8 +69,8 @@ const asCoord = (cwd) => ({ workingDirectory: cwd, session: { id: 'sess_coord' }
 test('journey: measure → promote → harvest → destroy, and the conclusion survives', async () => {
   const { base, vaultRoot, workspace, cwd, byName } = await fixture()
   try {
-    // ---- 1. the worker measures something and records it in L4 ---------------
-    const recorded = await byName.get('memory_write').execute(
+    // ---- 1. the worker measures something and proposes a candidate ----------
+    const candidate = await byName.get('memory_candidate').execute(
       {
         type: 'memory',
         title: '并发丢事件',
@@ -78,6 +78,18 @@ test('journey: measure → promote → harvest → destroy, and the conclusion s
         authority: 'agent-observed'
       },
       { agent: asWorker(cwd) }
+    )
+    assert.ok(candidate.includes('候选已记录'), candidate)
+
+    // The Curator is the only shared writer: it turns the candidate into L4.
+    const recorded = await byName.get('memory_write').execute(
+      {
+        type: 'memory',
+        title: '并发丢事件',
+        body: '压测结论：并发到 8 时开始丢事件。',
+        authority: 'agent-observed'
+      },
+      { agent: asCoord(cwd) }
     )
     const record = recorded.match(/workspaces\/ws_demo\/memory\/[^\s]+\.md/)[0]
 
@@ -95,6 +107,7 @@ test('journey: measure → promote → harvest → destroy, and the conclusion s
         title: '并发丢事件',
         body: '结论：并发到 8 时开始丢事件。证据见压测日志。',
         authority: 'measured',
+        review: 'approved',
         sources: ['projects/cpa/log/run-42.md', record]
       },
       { agent: asCoord(cwd) }
@@ -160,7 +173,7 @@ test('journey: a second run in the same workspace starts from the KB, not from s
   try {
     // First run leaves a conclusion in the KB and destroys its episode.
     await byName.get('memory_write').execute(
-      { type: 'finding', project: 'cpa', title: '阈值结论', body: '阈值是 0.86 MPa。', authority: 'measured' },
+      { type: 'finding', project: 'cpa', title: '阈值结论', body: '阈值是 0.86 MPa。', authority: 'measured', review: 'approved' },
       { agent: asCoord(cwd) }
     )
 

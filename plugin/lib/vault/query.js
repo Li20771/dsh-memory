@@ -456,15 +456,46 @@ function evaluate(node, doc, ctx) {
 
 // ---------------------------------------------------------------- corpus
 
-/** Per-index cache of tokenization + document frequency, keyed on version. */
+/** Per-index cache of tokenization + document frequency, keyed on version + authorization key. */
 const indexCache = new WeakMap()
 
-function getCorpus(index) {
+/**
+ * Build the searchable corpus.
+ *
+ * `authorize` is applied BEFORE tokenization/DF/doc construction. That is the
+ * security-relevant ordering: an unauthorized note must not contribute IDF
+ * weight, a candidate set, or a ranking position. `corpusKey` identifies the
+ * authorization context for caching; without it the corpus is rebuilt per call.
+ *
+ * @param {object} index
+ * @param {((path:string, entry:object)=>boolean)|null} [authorize]
+ * @param {string|null} [corpusKey]
+ */
+function getCorpus(index, authorize = null, corpusKey = null) {
   const version = index.version ?? 0
-  const cached = indexCache.get(index)
-  if (cached && cached.version === version) return cached
+  // An unrestricted library call keeps the old version-keyed cache. An
+  // authorization-scoped corpus is only cached when the caller supplies a key:
+  // caching it under an unknown identity would be a cross-tenant reuse bug.
+  const key =
+    typeof corpusKey === 'string' && corpusKey !== ''
+      ? corpusKey
+      : typeof authorize === 'function'
+        ? null
+        : '*'
+  const cacheable = key !== null
+  if (cacheable) {
+    const cached = indexCache.get(index)
+    if (cached && cached.version === version) {
+      const hit = cached.byKey.get(key)
+      if (hit) return hit
+    }
+  }
 
-  const entries = index.paths().map((p) => [p, index.get(p)]).filter(([, e]) => e)
+  const entries = index
+    .paths()
+    .map((p) => [p, index.get(p)])
+    .filter(([, e]) => e)
+    .filter(([path, entry]) => (typeof authorize === 'function' ? authorize(path, entry) : true))
   const df = new Map()
   const entryTokens = new Map()
   const docs = new Map()
@@ -475,7 +506,16 @@ function getCorpus(index) {
     for (const token of tokens) df.set(token, (df.get(token) || 0) + 1)
   }
   const corpus = { version, entries, df, entryTokens, docs, total: entries.length || 1 }
-  indexCache.set(index, corpus)
+
+  if (cacheable) {
+    let cached = indexCache.get(index)
+    if (!cached || cached.version !== version) cached = { version, byKey: new Map() }
+    // Bounded: a long-lived process with many workspaces must not accumulate
+    // one corpus per workspace forever.
+    if (cached.byKey.size >= 24) cached.byKey.clear()
+    cached.byKey.set(key, corpus)
+    indexCache.set(index, cached)
+  }
   return corpus
 }
 
@@ -490,14 +530,27 @@ function getCorpus(index) {
  *          scopes?:Array<{name:string,test:(fileId:string,entry:object)=>boolean}>,
  *          minScore?:number,
  *          halfLifeDays?:number,
- *          now?:number}} [options]
+ *          now?:number,
+ *          authorize?:((path:string,entry:object)=>boolean)|null,
+ *          corpusKey?:string|null}} [options]
  * @returns {{hits:Array<object>,triedScopes:string[],widened:boolean,notes:string[]}}
  */
 export function search(index, raw, options = {}) {
-  const { limit = 8, scopes = [], minScore = 0.001, halfLifeDays = 90, now = Date.now(), candidateBoost = null } = options
+  const {
+    limit = 8,
+    scopes = [],
+    minScore = 0.001,
+    halfLifeDays = 90,
+    now = Date.now(),
+    candidateBoost = null,
+    authorize = null,
+    corpusKey = null
+  } = options
   const ast = parseQuery(raw)
   const notes = []
-  const { entries, df, entryTokens, docs, total } = getCorpus(index)
+  // Authorization happens inside getCorpus: an unauthorized note never reaches
+  // tokenization, document frequency, the candidate set, or ranking.
+  const { entries, df, entryTokens, docs, total } = getCorpus(index, authorize, corpusKey)
 
   // IDF weights from the query's own terms, so ranking is query-aware while
   // matching stays boolean.

@@ -44,8 +44,8 @@ async function blockFor({ notePath, markerId, markerEnabled = false }) {
       await mkdir(join(abs, '..'), { recursive: true })
       await writeFile(abs, body, 'utf8')
     }
-    await put('positioning.md', '---\ntype: positioning\n---\n# 定位\n\n契约。\n')
-    await put(notePath, `---\ntype: workspace\nscope: ${markerId}\n---\n# 地图\n\n这条路通向资产仓。\n`)
+    await put('positioning.md', '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n')
+    await put(notePath, `---\ntype: workspace\nscope: ${markerId}\nvisibility: workspace-shared\n---\n# 地图\n\n这条路通向资产仓。\n`)
     await mkdir(cwd, { recursive: true })
     await writeMarker(workspace, { schema: 1, enabled: markerEnabled, id: markerId })
 

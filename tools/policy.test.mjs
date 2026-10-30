@@ -134,7 +134,7 @@ async function fixture() {
     await mkdir(join(abs, '..'), { recursive: true })
     await writeFile(abs, body, 'utf8')
   }
-  await write('positioning.md', '---\ntype: positioning\n---\n# 定位\n\n契约。\n')
+  await write('positioning.md', '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n')
   await mkdir(cwd, { recursive: true })
   await writeMarker(workspace, { schema: 1, enabled: true, id: 'ws_demo', episode: 'ep_1', coordinators: ['sess_coord'] })
   const harness = makeCtx()
@@ -153,7 +153,7 @@ test('memory_write refuses sensitive content and writes no file', async () => {
   try {
     const out = await byName.get('memory_write').execute(
       { type: 'memory', title: 'secrets', body: '内部 IP', sensitivity: 'sensitive' },
-      { agent: asWorker(cwd) }
+      { agent: asCoord(cwd) }
     )
     assert.ok(out.includes('拒绝写入'), out)
     assert.ok(out.includes('sensitive-refused'), out)
@@ -168,7 +168,7 @@ test('memory_write forces pending for an inferred workspace-wide claim', async (
   try {
     const out = await byName.get('memory_write').execute(
       { type: 'memory', title: 'tool 结论', body: '并发 8 时丢事件', authority: 'inferred' },
-      { agent: asWorker(cwd) }
+      { agent: asCoord(cwd) }
     )
     assert.ok(out.includes('forced-proposed'), out)
     const rel = out.match(/workspaces\/ws_demo\/memory\/[^\s]+\.md/)[0]
@@ -187,7 +187,7 @@ test('memory_write: a worker cannot overwrite a note it did not write', async ()
     await byName.get('memory_write').execute(args, { agent: asCoord(cwd) })
     const second = await byName.get('memory_write').execute({ ...args, body: '第二版' }, { agent: asWorker(cwd) })
     assert.ok(second.includes('拒绝写入'), second)
-    assert.ok(second.includes('memory_revise'), 'points at the right tool')
+    assert.ok(second.includes('memory_candidate'), 'points workers at the candidate path')
   } finally {
     await rm(base, { recursive: true, force: true })
   }
@@ -198,7 +198,7 @@ test('memory_write: a worker cannot overwrite a note it did not write', async ()
 test('memory_review: worker refused, coordinator approves', async () => {
   const { base, vaultRoot, cwd, byName } = await fixture()
   try {
-    await byName.get('memory_write').execute({ type: 'workflow', title: '待审流程', body: '内容' }, { agent: asWorker(cwd) })
+    await byName.get('memory_write').execute({ type: 'workflow', title: '待审流程', body: '内容' }, { agent: asCoord(cwd) })
     const rel = 'workflows/待审流程.md'
 
     const refused = await byName.get('memory_review').execute({ action: 'approve', path: rel }, { agent: asWorker(cwd) })
@@ -217,7 +217,7 @@ test('memory_review: worker refused, coordinator approves', async () => {
 test('memory_revise: worker refused, coordinator replaces body and keeps the old hash', async () => {
   const { base, vaultRoot, cwd, byName } = await fixture()
   try {
-    await byName.get('memory_write').execute({ type: 'workflow', title: '可修订', body: '旧正文' }, { agent: asWorker(cwd) })
+    await byName.get('memory_write').execute({ type: 'workflow', title: '可修订', body: '旧正文' }, { agent: asCoord(cwd) })
     const rel = 'workflows/可修订.md'
 
     const refused = await byName.get('memory_revise').execute({ path: rel, body: '新正文' }, { agent: asWorker(cwd) })
@@ -234,16 +234,18 @@ test('memory_revise: worker refused, coordinator replaces body and keeps the old
   }
 })
 
-test('memory_forget: own note retractable by a worker, hard delete is coordinator-only', async () => {
+test('memory_forget: workers are refused; coordinator retracts and hard-deletes', async () => {
   const { base, vaultRoot, cwd, byName } = await fixture()
   try {
-    const out = await byName.get('memory_write').execute({ type: 'memory', title: '我的记录', body: '会失效' }, { agent: asWorker(cwd) })
+    const out = await byName.get('memory_write').execute({ type: 'memory', title: '我的记录', body: '会失效' }, { agent: asCoord(cwd) })
     const rel = out.match(/workspaces\/ws_demo\/memory\/[^\s]+\.md/)[0]
 
-    const noDelete = await byName.get('memory_forget').execute({ path: rel, mode: 'delete' }, { agent: asWorker(cwd) })
-    assert.ok(noDelete.includes('拒绝'), noDelete)
+    const workerDelete = await byName.get('memory_forget').execute({ path: rel, mode: 'delete' }, { agent: asWorker(cwd) })
+    assert.ok(workerDelete.includes('拒绝'), workerDelete)
+    const workerRetract = await byName.get('memory_forget').execute({ path: rel, mode: 'retract' }, { agent: asWorker(cwd) })
+    assert.ok(workerRetract.includes('拒绝'), workerRetract)
 
-    const retracted = await byName.get('memory_forget').execute({ path: rel, mode: 'retract', reason: '已被推翻' }, { agent: asWorker(cwd) })
+    const retracted = await byName.get('memory_forget').execute({ path: rel, mode: 'retract', reason: '已被推翻' }, { agent: asCoord(cwd) })
     assert.ok(retracted.includes('已失效化'), retracted)
     const content = await readFile(join(vaultRoot, ...rel.split('/')), 'utf8')
     assert.ok(content.includes('status: retracted'))
@@ -268,7 +270,7 @@ test('injection: one representative per source family, and the coverage says so'
     const note = (name, family, body) =>
       writeFile(
         join(dir, name),
-        `---\ntype: memory\nscope: ws_demo\nreview:\n  state: pending\norigin:\n  session: s\n  family: ${family}\ncreated: 2026-10-23T0${name.length}:00:00Z\n---\n# ${name}\n\n${body}\n`,
+        `---\ntype: memory\nscope: ws_demo\nvisibility: workspace-shared\nreview:\n  state: approved\norigin:\n  session: s\n  family: ${family}\ncreated: 2026-10-23T0${name.length}:00:00Z\n---\n# ${name}\n\n${body}\n`,
         'utf8'
       )
     // Three records, two of which are the same evidence seen twice.
@@ -297,22 +299,22 @@ test('injection: every row carries credibility (review state + where the claim c
     await mkdir(dir, { recursive: true })
     await writeFile(
       join(dir, '2026-10-23-p.md'),
-      `---\ntype: memory\nscope: ws_demo\nauthority: inferred\nreview:\n  state: pending\norigin:\n  session: s\n  family: fam_p\ncreated: 2026-10-23T10:00:00Z\n---\n# p\n\n推断内容\n`,
+      `---\ntype: memory\nscope: ws_demo\nvisibility: workspace-shared\nauthority: inferred\nreview:\n  state: approved\norigin:\n  session: s\n  family: fam_p\ncreated: 2026-10-23T10:00:00Z\n---\n# p\n\n推断内容\n`,
       'utf8'
     )
     await writeFile(
       join(dir, '2026-10-23-q.md'),
-      `---\ntype: memory\nscope: ws_demo\nauthority: agent-observed\nreview:\n  state: approved\norigin:\n  session: s\n  family: fam_q\ncreated: 2026-10-23T11:00:00Z\n---\n# q\n\n观察内容\n`,
+      `---\ntype: memory\nscope: ws_demo\nvisibility: workspace-shared\nauthority: agent-observed\nreview:\n  state: approved\norigin:\n  session: s\n  family: fam_q\ncreated: 2026-10-23T11:00:00Z\n---\n# q\n\n观察内容\n`,
       'utf8'
     )
     const hook = harness.hooks.get('agent/pre-step')[0]
     const decision = { kind: 'continue', messages: [humanMessage('m1', 'zzz')] }
-    // A worker reads everything in its workspace — role gates writing, not reading.
+    // A worker reads approved memory in its workspace — role gates writing, not reading.
     const out = await hook({ agent: asWorker(cwd), messages: decision.messages, step: 1, signal: {} }, async () => decision)
     const text = out.messages[out.messages.length - 1].content[0].text
 
     // "实测 vs 推测" must be visible in the injected block, not only stored.
-    assert.ok(text.includes('[待审·推断]'), text.slice(0, 900))
+    assert.ok(text.includes('[已审·推断]'), text.slice(0, 900))
     assert.ok(text.includes('[已审·观察]'), text.slice(0, 900))
     assert.ok(text.includes('推断内容') && text.includes('观察内容'), '两条都要被注入（worker 可读全工作区）')
   } finally {

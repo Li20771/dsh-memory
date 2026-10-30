@@ -461,12 +461,16 @@ export class VaultIndex {
    * question even when nothing matches the current wording, and returning
    * nothing there would make cross-session continuity invisible.
    *
+   * `authorize` is applied BEFORE sorting/slicing. A foreign record must not
+   * consume one of the `limit` slots even when it is simply "recent".
+   *
    * @param {string} type
    * @param {string} scope
    * @param {number} [limit]
+   * @param {((path:string, entry:object)=>boolean)|null} [authorize]
    * @returns {Array<{path:string, created:string, entry:object}>}
    */
-  recentByTypeScope(type, scope, limit = 3) {
+  recentByTypeScope(type, scope, limit = 3, authorize = null) {
     const wantType = String(type ?? '').toLowerCase()
     const wantScope = String(scope ?? '').toLowerCase()
     const out = []
@@ -475,6 +479,7 @@ export class VaultIndex {
       if (String(fm.type ?? '').toLowerCase() !== wantType) continue
       const s = String(fm.scope ?? '').toLowerCase()
       if (wantScope !== '' && s !== wantScope && !s.startsWith(`${wantScope}/`)) continue
+      if (typeof authorize === 'function' && !authorize(path, entry)) continue
       out.push({ path, created: String(fm.created ?? ''), entry })
     }
     out.sort((a, b) => b.created.localeCompare(a.created) || a.path.localeCompare(b.path))

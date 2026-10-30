@@ -93,27 +93,108 @@ node tools/enable-workspace.mjs "D:\SecurityLab" --id ws_securitylab --episode e
 
 ---
 
-## 工具（10 个）
+## 工具（12 个）
 
 | 工具 | 作用 |
 |---|---|
-| `memory_search` | 检索；也用于**校验引用**（`verify`） |
-| `memory_write` | 写入（过准入）；支持 `supersedes` / `sources` |
-| `memory_revise` | 修订他人正文（协调会话） |
-| `memory_review` | 审查 pending（协调会话） |
-| `memory_forget` | 失效化 / 硬删除 |
+| `memory_search` | 检索；也用于**校验引用**（`verify`）。默认只返回授权切片，`scope`/`allScopes` 不能扩权 |
+| `memory_write` | 写入（过准入）；支持 `supersedes` / `sources`。**仅 Curator/主 DSH** |
+| `memory_candidate` | worker 提交 pending 候选（存 `.kb-index/`，不进入 recall/MemoryPack） |
+| `memory_revise` | 修订正文（Curator/主 DSH） |
+| `memory_review` | 审查 pending（Curator/主 DSH） |
+| `memory_forget` | 失效化 / 硬删除（Curator/主 DSH） |
 | `memory_harvest` | 收割：plan / record / finish |
-| `memory_purge` | 销毁段落（两段式确认） |
-| `memory_workflow` | L3 池：list / pin / unpin / forget / sweep |
+| `memory_migration_report` | 只读 legacy 迁移清单；不读正文、不改写 vault（Curator/主 DSH） |
+| `memory_purge` | 销毁段落（两段式确认，Curator/主 DSH） |
+| `memory_workflow` | L3 池：list / pin / unpin / forget / sweep（变更仅 Curator） |
 | `memory_stats` | 计数 |
 | `memory_diagnose` | 诊断：作用域、开关、段状态、收割覆盖、链接健康、引用审计、可迁移性、语义扩展状态 |
+
+---
+
+## Fleet v3 读写边界
+
+### 可见性（MemoryPack v1.1.0）
+
+**只有显式 `visibility: user-global` 的记录可以跨 workspace。** 不再按 L1/L3/KB
+类型自动推断全局。
+
+| visibility | worker 读取规则 |
+|---|---|
+| `user-global` | 可跨 workspace 读取（**唯一**跨 workspace 的可见性；必须显式出现在 frontmatter） |
+| `workspace-shared` | 仅同一 `workspace_id` |
+| `episode-shared` | 同 workspace + 同 `episode_id` |
+| `run-private` | 同 `run_id`（来自可信 host 绑定） |
+| `restricted` | 拒绝；不进入 recall/MemoryPack |
+| 无显式 `visibility`（`unmarked`） | 不进入 worker recall/MemoryPack；只出现在 `memory_migration_report` |
+
+旧记录没有显式 `visibility` 时：
+
+- 不得按 `positioning`/`workflow`/`finding` 等 type 推断为 `user-global`；
+- 在 Curator 人工确认并迁移前，不进入 worker MemoryPack；
+- 只读迁移清单只列路径/type/scope/review 和未确认建议，不读正文、不改写 vault。
+
+授权在**检索、排序、top-k、IDF、citation、诊断之前**发生：未授权记录不会进入
+候选集/DF/排序位置。`scope`/`allScopes` 只能缩小，不能扩大可信范围；citation 对
+foreign/missing 统一返回 `unavailable`，诊断只统计授权切片。
+
+`pending`/`rejected`/`superseded`/`restricted` 默认不进入普通 recall 或 worker
+MemoryPack。
+
+### 可信身份
+
+`workspace_id`/`episode_id`/`role`/`run_id` 来自 host 绑定（测试中通过
+`exec.hostContext.binding` 注入）或工作区 marker，**不读工具参数**。出现
+`workspace_id`、`role`、`run_id` 等参数会被拒绝。marker 的 coordinator 白名单
+只决定 legacy 角色；host 绑定是 worker 时不能被 marker 升级。
+
+### 只读 MemoryPack
+
+```js
+import { createMemoryPackContext, createMemoryPackService } from 'dsh-memory'
+
+const service = createMemoryPackService({
+  vaultRoot,
+  workspace: { id: 'ws_a', episode: 'ep_1' },
+  workspaces: ['ws_a', 'ws_b'] // 可选：host 侧 enabled 注册表
+})
+const context = createMemoryPackContext({
+  workspace_id: 'ws_a',
+  episode_id: 'ep_1',
+  role: 'researcher',
+  run_id: 'run_0123456789abcdef',
+  task_id: 'analysis_a',
+  purpose: 'phase pack',
+  max_entries: 100
+})
+const pack = await service.getPack(context) // deep-frozen, read_only: true
+```
+
+`getPack` 只接受由 `createMemoryPackContext` 创建的 context（防止 model 自报身份）。
+接口没有 `write/update/delete/purge/revise`。pack 按 **`MEMORYPACK_V1_1.md`
+v1.1.0** 生成 `snapshot_id/hash`；hash 不含 `generated_at`/`run_id`。`excluded` 只
+统计授权切片内的 pending/rejected/superseded/restricted/unmarked/path_invalid/
+entry_invalid，foreign 记录不计数。
+
+- `path` 使用 NFC 规范化的 Unicode 相对路径（`/` 分隔）；仍拒绝绝对路径、盘符、
+  UNC、`\`、`.`/`..`、空段、控制字符、NUL 和 ADS 冒号。无效路径计入
+  `excluded.path_invalid`，不会静默漏掉中文笔记。
+- 显式 `user-global` 且无来源 scope 的条目使用保留 owner `workspace_id: "global"`；
+  不会把请求方 workspace_id 填成旧记录 owner。
+- `policy.cross_workspace` 由实际 `entries` 重新计算：存在
+  `visibility: user-global` 且 `workspace_id != scope.workspace_id` 的条目时为 true；
+  `global` 视为跨 workspace。
+- `workspaces` 可传 Set/Map/数组/对象作为 host 侧注册表；marker 的 `enabled` 是
+  L4 注入开关，不等于 workspace 注册状态（注册状态用 `workspaces`/`registered`）。
+- 历史 v1.0.0 合同/schema 保留在 `brief/contracts/`，不被覆盖；消费者必须按
+  `contract_version` 精确校验。
 
 ---
 
 ## 验证
 
 ```powershell
-node --test tools/*.test.mjs   # 110 项：解析/保真度/插件/策略/生命周期/引用/语义
+node --test tools/*.test.mjs   # 全部离线测试：解析/保真度/插件/策略/生命周期/引用/语义/隔离/路径/MemoryPack
 node tools/integration.mjs     # 6 项：真实 SystemPrompt + ToolRuntime
 node tools/portability.mjs     # 8 项：无绝对路径 / 克隆可用 / ignore 覆盖
 node tools/vault-check.mjs kb  # 人工检查某个 vault

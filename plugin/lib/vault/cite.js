@@ -253,24 +253,41 @@ export function lineRangeOf(body, range) {
  * Report link health for a vault: unresolved and ambiguous links are the two
  * ways a knowledge base quietly rots.
  *
+ * When authorization predicates are supplied, a link whose source or resolved
+ * target is outside the caller's slice is not counted at all. That prevents
+ * diagnostics from disclosing a foreign path (or a global count that implies
+ * one exists) through link health.
+ *
  * @param {import('./index.js').VaultIndex} index
+ * @param {{isSourceAuthorized?:(path:string)=>boolean,
+ *          isTargetAuthorized?:(path:string)=>boolean}} [options]
  * @returns {{unresolved:Array<{from:string,raw:string,target:string}>,
  *            ambiguous:Array<{from:string,raw:string,target:string,candidates:string[]}>,
  *            totalLinks:number, resolvedLinks:number}}
  */
-export function linkHealth(index) {
+export function linkHealth(index, options = {}) {
+  const isSourceAuthorized = typeof options.isSourceAuthorized === 'function' ? options.isSourceAuthorized : () => true
+  const isTargetAuthorized = typeof options.isTargetAuthorized === 'function' ? options.isTargetAuthorized : () => true
   const unresolved = []
   const ambiguous = []
   let totalLinks = 0
   let resolvedLinks = 0
   for (const path of index.paths()) {
+    if (!isSourceAuthorized(path)) continue
     for (const link of index.outlinksOf(path)) {
-      totalLinks++
       if (link.resolution === 'file' || link.resolution === 'self') {
+        // `self` is always inside the authorized source. A file target that is
+        // not authorized is omitted entirely, not counted as unresolved.
+        if (link.resolution === 'file' && !isTargetAuthorized(link.fileId)) continue
+        totalLinks++
         resolvedLinks++
       } else if (link.resolution === 'ambiguous') {
-        ambiguous.push({ from: path, raw: link.raw, target: link.target, candidates: link.candidates ?? [] })
+        const candidates = (link.candidates ?? []).filter((candidate) => isTargetAuthorized(candidate))
+        if (candidates.length === 0) continue
+        totalLinks++
+        ambiguous.push({ from: path, raw: link.raw, target: link.target, candidates })
       } else {
+        totalLinks++
         unresolved.push({ from: path, raw: link.raw, target: link.target })
       }
     }

@@ -65,7 +65,7 @@ async function fixture() {
   const cwd = join(workspace, 'p1')
   await mkdir(cwd, { recursive: true })
   await mkdir(vaultRoot, { recursive: true })
-  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\n---\n# 定位\n\n契约。\n', 'utf8')
+  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n', 'utf8')
   await writeMarker(workspace, {
     schema: 1,
     enabled: true,

@@ -115,7 +115,7 @@ async function fixture() {
   const cwd = join(workspace, 'p1')
   await mkdir(join(vaultRoot, 'workflows'), { recursive: true })
   await mkdir(cwd, { recursive: true })
-  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\n---\n# 定位\n\n契约。\n', 'utf8')
+  await writeFile(join(vaultRoot, 'positioning.md'), '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n', 'utf8')
   await writeMarker(workspace, {
     schema: 1,
     enabled: true,
@@ -139,7 +139,7 @@ async function seedRecords(byName, cwd, titles) {
   for (const title of titles) {
     const out = await byName.get('memory_write').execute(
       { type: 'memory', title, body: `${title} 的正文`, authority: 'user-stated' },
-      { agent: asWorker(cwd) }
+      { agent: asCoord(cwd) }
     )
     const match = out.match(/workspaces\/ws_demo\/memory\/[^\s]+\.md/)
     assert.ok(match, out)
@@ -322,7 +322,7 @@ test('memory_purge scope= destroys a whole workspace and leaves others alone', a
     await mkdir(join(vaultRoot, 'workspaces', 'ws_other', 'memory'), { recursive: true })
     await writeFile(
       join(vaultRoot, 'workspaces', 'ws_other', 'memory', '2026-10-23-o.md'),
-      '---\ntype: memory\nscope: ws_other\n---\n# 别的项目\n\n不该被牵连。\n',
+      '---\ntype: memory\nscope: ws_other\nvisibility: workspace-shared\n---\n# 别的项目\n\n不该被牵连。\n',
       'utf8'
     )
 

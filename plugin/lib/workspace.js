@@ -16,6 +16,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
+import { safeScopeId } from './vault/paths.js'
+
 export const MARKER_DIR = '.dsh'
 export const MARKER_FILE = 'memory.json'
 
@@ -58,6 +60,12 @@ export async function readMarker(root) {
  * @param {object} marker
  */
 export async function writeMarker(root, marker) {
+  // A marker is a host configuration file, but its ids become path segments.
+  // Reject invalid ids at write time rather than teaching every caller to do it.
+  if (marker && typeof marker === 'object') {
+    if (marker.id !== undefined) safeScopeId(marker.id)
+    if (marker.episode !== undefined && marker.episode !== null && marker.episode !== '') safeScopeId(marker.episode)
+  }
   await mkdir(join(root, MARKER_DIR), { recursive: true })
   await writeFile(markerPath(root), `${JSON.stringify(marker, null, 2)}\n`, 'utf8')
 }
@@ -108,14 +116,30 @@ export async function resolveWorkspace(cwd, options = {}) {
     const marker = await readMarker(dir)
     if (marker) {
       const coordinators = Array.isArray(marker.coordinators) ? marker.coordinators.map(String) : []
-      const id =
-        typeof marker.id === 'string' && marker.id.trim() !== ''
-          ? marker.id.trim()
-          : `ws_${slugify(basename(dir))}`
+      let id
+      try {
+        id = typeof marker.id === 'string' && marker.id.trim() !== ''
+          ? safeScopeId(marker.id)
+          : safeScopeId(`ws_${slugify(basename(dir))}`)
+      } catch {
+        // A malformed id must not become a path segment or a scope. Fail closed
+        // instead of guessing a different identity.
+        return none(depth)
+      }
+      let episode = null
+      if (typeof marker.episode === 'string' && marker.episode.trim() !== '') {
+        try {
+          episode = safeScopeId(marker.episode)
+        } catch {
+          // Keep workspace-shared access, but never let a bad episode id reach a
+          // path or an episode-shared comparison.
+          episode = null
+        }
+      }
       return {
         root: dir,
         id,
-        episode: typeof marker.episode === 'string' && marker.episode.trim() !== '' ? marker.episode.trim() : null,
+        episode,
         // L4 read-side authorization. Anything other than an explicit true keeps
         // episode memory out of the context.
         enabled: marker.enabled === true,

@@ -72,6 +72,7 @@ async function vaultOf(files) {
 
 const NOTE = `---
 type: finding
+visibility: user-global
 ---
 # 发现
 
@@ -212,7 +213,11 @@ async function mounted() {
   await mkdir(join(vaultRoot, 'projects', 'p1'), { recursive: true })
   await mkdir(cwd, { recursive: true })
   await writeFile(join(vaultRoot, 'projects/p1/findings.md'), NOTE, 'utf8')
-  await writeFile(join(vaultRoot, 'projects/p1/broken.md'), '# 断链\n\n[[不存在]]\n', 'utf8')
+  await writeFile(
+    join(vaultRoot, 'projects/p1/broken.md'),
+    '---\ntype: finding\nvisibility: user-global\n---\n# 断链\n\n[[不存在]]\n',
+    'utf8'
+  )
   await writeMarker(workspace, { schema: 1, enabled: true, id: 'ws_demo', coordinators: ['sess_coord'], state: 'active' })
   const harness = makeCtx()
   plugin.apply(harness.ctx, { vaultRoot, fullStatIntervalMs: 0 })

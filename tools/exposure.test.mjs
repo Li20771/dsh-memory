@@ -63,12 +63,12 @@ async function fixture() {
     await mkdir(join(abs, '..'), { recursive: true })
     await writeFile(abs, body, 'utf8')
   }
-  await put('positioning.md', '---\ntype: positioning\n---\n# 定位\n\n契约。\n')
+  await put('positioning.md', '---\ntype: positioning\nvisibility: user-global\n---\n# 定位\n\n契约。\n')
 
   // Two workspaces, both with a record about the same subject. Only the first
   // should ever reach a session working inside ws_a.
   const record = (scope, marker) =>
-    `---\ntype: memory\nscope: ${scope}\nreview:\n  state: approved\norigin:\n  session: s\n  family: fam_${scope}\ncreated: 2026-10-23T10:00:00Z\n---\n# ${scope} 的记录\n\n并发丢事件的结论：${marker}\n`
+    `---\ntype: memory\nscope: ${scope}\nvisibility: workspace-shared\nreview:\n  state: approved\norigin:\n  session: s\n  family: fam_${scope}\ncreated: 2026-10-23T10:00:00Z\n---\n# ${scope} 的记录\n\n并发丢事件的结论：${marker}\n`
   await put('workspaces/ws_a/memory/2026-10-23-a.md', record('ws_a', SIDE_A))
   await put('workspaces/ws_b/memory/2026-10-23-b.md', record('ws_b', SIDE_B))
 
@@ -150,7 +150,7 @@ test('exposure: the foreign record exists and is findable, so its absence above 
 
 // ------------------------------------- 3. the tool path is closed by default too
 
-test('exposure: memory_search withholds foreign memory unless asked for it', async () => {
+test('exposure: memory_search withholds foreign memory even when scope is named', async () => {
   const { base, cwd, byName } = await fixture()
   try {
     const agent = asWorker(cwd)
@@ -158,13 +158,15 @@ test('exposure: memory_search withholds foreign memory unless asked for it', asy
     const unscoped = await byName.get('memory_search').execute({ query: '并发 丢事件' }, { agent })
     assert.ok(unscoped.includes(SIDE_A), unscoped)
     assert.ok(!unscoped.includes(SIDE_B), `默认作用域下不应出现外部记录：${unscoped}`)
-    assert.ok(unscoped.includes('已排除') && unscoped.includes('其他工作区'), '必须如实报告排除了多少条')
+    assert.ok(!unscoped.includes('已排除'), '不得通过计数泄露外部记录的存在')
 
+    // Neither `allScopes` nor an explicit foreign scope may widen authorization.
     const widened = await byName.get('memory_search').execute({ query: '并发 丢事件', allScopes: true }, { agent })
-    assert.ok(widened.includes(SIDE_B), `显式 allScopes 应可见：${widened}`)
+    assert.ok(!widened.includes(SIDE_B), `allScopes 不得扩大授权：${widened}`)
 
     const explicit = await byName.get('memory_search').execute({ query: '并发 丢事件', scope: 'ws_b' }, { agent })
-    assert.ok(explicit.includes(SIDE_B), `显式指定 scope 应可见：${explicit}`)
+    assert.ok(!explicit.includes(SIDE_B), `显式指定外部 scope 不得扩大授权：${explicit}`)
+    assert.ok(!explicit.includes('ws_b'), `拒绝信息不得回显外部路径：${explicit}`)
   } finally {
     await rm(base, { recursive: true, force: true })
   }
@@ -180,7 +182,7 @@ test('exposure: knowledge-base notes are not scope-gated, only workspace memory 
     await mkdir(join(vaultRoot, 'projects', 'cpa', 'findings'), { recursive: true })
     await writeFile(
       join(vaultRoot, 'projects', 'cpa', 'findings', '并发丢事件.md'),
-      '---\ntype: finding\nstatus: active\nauthority: measured\n---\n# 并发丢事件\n\n并发到 8 时开始丢事件，KB-可见。\n',
+      '---\ntype: finding\nstatus: active\nauthority: measured\nvisibility: user-global\n---\n# 并发丢事件\n\n并发到 8 时开始丢事件，KB-可见。\n',
       'utf8'
     )
     const agent = asWorker(cwd)
