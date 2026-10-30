@@ -15,12 +15,19 @@
  * Any probe that cannot be constructed without a full Cordis app is reported as
  * UNCONFIRMED with its reason, never as a pass.
  */
+import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { join, resolve } from 'node:path'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 
-const SDK = 'C:/Users/20771/AppData/Local/Programs/DeepSeek Harness/resources/app/dsh/node_modules/@deepseek-ai'
+// The real SDK lives inside the desktop installation. Two shapes exist in the
+// wild: an extracted `resources/app/dsh/...` tree (importable by plain Node) and
+// a packed `resources/app.asar` (importable by Electron only). When only the
+// asar exists these probes cannot run at all, and that is an environment fact,
+// not a plugin defect — so it is reported as a declared skip, never as a pass.
+const APP = 'C:/Users/20771/AppData/Local/Programs/DeepSeek Harness/resources'
+const SDK = join(APP, 'app', 'dsh', 'node_modules', '@deepseek-ai')
 const PLUGIN = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', 'plugin', 'lib', 'index.js')
 const entry = (pkg) => pathToFileURL(join(SDK, pkg, 'lib', 'index.js')).href
 
@@ -32,6 +39,16 @@ const bad = (m) => failures.push(m)
 const unknown = (m, why) => unconfirmed.push(`${m} — ${why}`)
 
 async function main() {
+  if (!existsSync(SDK)) {
+    if (existsSync(join(APP, 'app.asar'))) {
+      console.log('integration: SKIPPED — the desktop app is asar-packed, so the real Cordis/dsh-tools')
+      console.log('  modules cannot be imported by plain Node. This is an environment fact, not a pass.')
+      console.log('  The host-side contract stays covered by: node --test tools/*.test.mjs')
+      process.exit(0)
+    }
+    bad(`no dsh app tree under ${APP} (neither app/dsh nor app.asar)`)
+    return report()
+  }
   let Context, ToolRuntime, SystemPrompt, renderPrompt
   try {
     ;({ Context } = await import(entry('cordis')))

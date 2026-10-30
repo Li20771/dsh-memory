@@ -16,12 +16,24 @@
 //      silently returning less — silent under-recall is how a wrong scope hides.
 //   4. Injected memory is data, not instruction: it is framed as reference, and
 //      fence markers in note text are escaped so a note cannot close the wrapper.
+//   5. The HTTP surface (`lib/routes/**`, `ui-contract.json`) is registered through
+//      the plugin fiber and unwinds on unload. It is READ-ONLY except for the three
+//      workflow actions, which call the same shared functions `memory_workflow`
+//      calls, so a pin over HTTP is governed exactly like a pin from a tool.
+//      `webServer` is acquired at RUNTIME, never declared: this host's Cordis
+//      treats every key of an `inject` object as REQUIRED (verified against
+//      cordis 4.0.5 — a `{required, optional}` declaration leaves the fiber
+//      PENDING for a service literally named "required"), so declaring it would
+//      keep the whole memory plugin — tools included — from mounting on a profile
+//      without an HTTP server. Without it the routes are skipped with a warning
+//      and every tool and injection behaviour is unchanged.
 //
 // @module dsh-memory
 
 import { createHash, randomUUID } from 'node:crypto'
 import { appendFile, mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { VaultIndex } from './vault/index.js'
 import { linkHealth, parseCitation, resolveCitation } from './vault/cite.js'
@@ -48,6 +60,16 @@ import {
 import { readMarker, resolveWorkspace, slugify, touchedPaths, updateMarker } from './workspace.js'
 import { renderNote, rewriteNote } from './memory/frontmatter.js'
 import { KNOWN_TYPES, applyReview, checkAdmission, dedupeByFamily, familyOf, workflowDecay } from './memory/policy.js'
+import {
+  CITE_STATUS_NOTES,
+  createWorkflowAdmin,
+  describeWorkflow,
+  findWorkspaceMap,
+  l4View,
+  renderL3List
+} from './memory/panel-data.js'
+import { registerMemoryRoutes } from './routes/index.js'
+import { openKnowledgeBase } from './routes/kb-open.js'
 import { createEmbeddingProvider, nullProvider } from './vault/embedding.js'
 import { diffRegistry, readRegistry, readSnapshot, registryPath, writeSnapshot } from './memory/registry.js'
 import {
@@ -62,7 +84,18 @@ import {
 } from './memory/lifecycle.js'
 
 const name = 'dsh-memory'
+/**
+ * Hard dependencies, and ONLY these. `webServer` is deliberately absent: it is
+ * acquired at runtime (see constraint 5 in the file header) so a profile without
+ * an HTTP server keeps every memory tool.
+ */
 const inject = ['tools', 'systemPrompt']
+
+/** The service the UI routes need if it happens to exist. Not a dependency. */
+const OPTIONAL_INJECT = ['webServer']
+
+/** Emitted when the routes cannot be registered. Frozen by the UI build contract. */
+const NO_WEBSERVER_WARN = 'dsh-memory: webServer 不可用，UI 路由未注册'
 
 const LAYER_TITLES = {
   L1: '定位（它为我做什么）',
@@ -209,6 +242,12 @@ const DEFAULT_CONFIG = {
   l4Cap: 1500,
   l3Limit: 3,
   l4Limit: 3,
+  /**
+   * Directory holding the knowledge page (`index.html` + its same-directory
+   * assets). Empty -> `plugin/ui/kb`. Overridable for tests and for installs that
+   * ship the page elsewhere.
+   */
+  uiDir: '',
   /** Total injected character budget (hard). */
   injectBudgetChars: 6000,
   /** Recency half-life used by ranking. */
@@ -491,19 +530,11 @@ function apply(ctx, config) {
       // marker's id and the note's filename are edited by different hands (someone
       // renames a file, or the id is chosen later), and a silently missing L2 defeats
       // the whole point of the layer. Fall back to matching the note's `scope:`.
-      let l2 = index.get(`workspaces/${ws.id}.md`)
-      if (!l2 || !authorizeEntry(l2, access).allowed) {
-        const wanted = String(ws.id).toLowerCase()
-        l2 = null
-        for (const path of index.paths()) {
-          const entry = index.get(path)
-          if (String(entry?.parsed.frontmatter?.type ?? '').toLowerCase() !== 'workspace') continue
-          if (String(entry?.parsed.frontmatter?.scope ?? '').toLowerCase() !== wanted) continue
-          if (!authorizeEntry(entry, access).allowed) continue
-          l2 = entry
-          break
-        }
-      }
+      // That rule lives in memory/panel-data.js because the panel's L2 section asks
+      // the same question — and two answers would be two different workspace maps.
+      // The authorization predicate is applied inside the fallback so an
+      // unmarked/foreign map can never be selected merely because it sorts first.
+      const l2 = findWorkspaceMap(index, ws, (entry) => authorizeEntry(entry, access).allowed)
       if (l2 && l2.parsed.body.trim() !== '') {
         sections.push(`### L2 ${LAYER_TITLES.L2}（${ws.id}）\n${clip(l2.parsed.body.trim(), cfg.l2Cap)}`)
         applied.push('L2')
@@ -686,6 +717,18 @@ function apply(ctx, config) {
     }
     const parsed = parseNote(raw)
     return { rel, abs, parsed, entries: parseDispositions(parsed.body) }
+  }
+
+  /**
+   * Harvest coverage for one workspace, in the shape the panel's workspace block
+   * reports it. Uses the same `episodeRecords` / `readHarvest` /
+   * `checkHarvestCoverage` triple the harvest tool uses, so "covered 3/4" cannot
+   * mean one thing in the panel and another in `memory_harvest action=plan`.
+   */
+  async function harvestStatus(ws) {
+    if (!ws.id) return { covered: 0, total: 0, missing: [] }
+    const coverage = checkHarvestCoverage(episodeRecords(ws), (await readHarvest(ws)).entries)
+    return { covered: coverage.covered, total: coverage.total, missing: coverage.missing }
   }
 
   /**
@@ -1036,6 +1079,30 @@ function apply(ctx, config) {
     return lastWorkspaceSync
   }
 
+  /**
+   * The L3 pool and its three governed actions (pin / unpin / forget), shared by
+   * the `memory_workflow` tool below and by the panel's `/panel/workflow` route.
+   *
+   * One implementation is the point: the panel must not be able to pin as a worker,
+   * forget a pinned workflow, or delete a file without the .trash + tombstone
+   * mechanics simply because it arrived over HTTP instead of through a tool.
+   */
+  const workflowAdmin = createWorkflowAdmin({
+    index,
+    vaultRoot,
+    loadUsage,
+    halfLifeDays: cfg.workflowHalfLifeDays,
+    rewriteNote,
+    evictNote,
+    // The same explicit-visibility boundary as the tool: the panel cannot list
+    // or mutate a workflow the caller could not read through `memory_search`.
+    authorize: (entry, access) =>
+      authorizeEntry(entry, access, {
+        includePending: access?.isCoordinator === true,
+        allowUnmarked: false
+      }).allowed
+  })
+
   const toolList = [
     {
       name: 'memory_search',
@@ -1094,13 +1161,10 @@ function apply(ctx, config) {
             return `引用: ${authorized.path}\n状态: missing — 该笔记已不存在。`
           }
           const resolved = resolveCitation(index, { ...parsed, note: authorized.path, revision: args.revision })
-          const notes = {
-            ok: '引用有效。',
-            stale: '该笔记已被修改：旧区间可能指向不同内容，请重新检索确认。',
-            missing: '该笔记已不存在。',
-            moved: '笔记还在，但被引用的块 id 不在了（块可能被删或改写）。',
-            unknown: '无法判定。'
-          }
+          // The wording of each status has ONE implementation (memory/panel-data.js):
+          // the knowledge page's citation badge and this tool must explain the same
+          // state the same way, or "stale" would mean two different things.
+          const notes = CITE_STATUS_NOTES
           return [
             `引用: ${authorized.path}`,
             `状态: ${resolved.status} — ${notes[resolved.status] ?? ''}`,
@@ -2131,42 +2195,13 @@ function apply(ctx, config) {
       async execute(args, exec) {
         const usedIdentity = identityArgUsed(args)
         if (usedIdentity !== null) return `拒绝：参数 ${usedIdentity} 不是可信身份来源。`
-        const { access } = await accessOf(exec)
+        const { ws, access } = await accessOf(exec)
         if (access.bindingMismatch) return '拒绝：host 绑定与当前工作区不一致（fail closed）。'
         await refresh(access)
         const usage = await loadUsage()
+        const workflows = await workflowAdmin.list(access)
 
-        const workflows = []
-        for (const path of index.paths()) {
-          const entry = index.get(path)
-          const fm = entry?.parsed.frontmatter ?? {}
-          if (String(fm.type ?? '').toLowerCase() !== 'workflow') continue
-          if (String(fm.status ?? '').toLowerCase() === 'retracted') continue
-          if (!authorizeEntry(entry, access, { includePending: access.isCoordinator, allowUnmarked: false }).allowed) continue
-          const used = usage.get(path)
-          const decay = workflowDecay(
-            {
-              lastUsed: used?.lastUsed,
-              created: fm.created ?? fm.updated,
-              useCount: used?.count ?? 0,
-              pinned: fm.pinned === true
-            },
-            { halfLifeDays: cfg.workflowHalfLifeDays }
-          )
-          workflows.push({ path, title: String(fm.title ?? path), decay, pinned: fm.pinned === true })
-        }
-        workflows.sort((a, b) => a.decay.score - b.decay.score)
-
-        const showScore = (score) => (score < 0.001 ? '<0.001' : score.toFixed(3))
-        const describe = (w) =>
-          `- ${w.decay.state === 'pinned' ? '📌' : '·'} ${w.path}｜${w.decay.state}｜score=${showScore(w.decay.score)}｜${
-            w.decay.ageDays === null ? '未记录使用' : `${w.decay.ageDays} 天未用`
-          }｜召回 ${w.decay.useCount} 次`
-
-        if (args.action === 'list') {
-          if (workflows.length === 0) return 'L3 工作流池为空。'
-          return [`L3 工作流 ${workflows.length} 条（按衰减分升序：最该忘的在最前）`, ...workflows.map(describe)].join('\n')
-        }
+        if (args.action === 'list') return renderL3List(workflows)
 
         const needsPath = args.action === 'pin' || args.action === 'unpin' || args.action === 'forget'
         let rel = null
@@ -2177,53 +2212,28 @@ function apply(ctx, config) {
             return '拒绝：path 非法。'
           }
         }
-        const target = rel === null ? undefined : workflows.find((w) => w.path === rel)
 
-        if (args.action === 'pin' || args.action === 'unpin') {
-          if (!access.isCoordinator) return '拒绝：只有 Curator/主 DSH（orchestrator）可以固定/解固工作流。'
-          if (!target) return `没有找到工作流 ${rel}。`
-          let abs
-          try {
-            ;({ abs } = await vaultPath(rel, { mustExist: true }))
-          } catch {
-            return '拒绝：该工作流不可解析。'
-          }
-          await rewriteNote(abs, (frontmatter) => {
-            if (args.action === 'pin') frontmatter.pinned = true
-            else delete frontmatter.pinned
-            frontmatter.updated = new Date().toISOString()
-          })
-          await index.refreshFiles([abs])
-          return args.action === 'pin'
-            ? `${rel} → 已固定：永久保留，不参与衰减淘汰。`
-            : `${rel} → 已解固：重新参与衰减（当前 score=${target.decay.score}）。`
+        // pin / unpin / forget go through the SHARED implementation
+        // (memory/panel-data.js), which is also what `/panel/workflow` calls: the
+        // role gate, the pinned refusal and the .trash + tombstone mechanics exist
+        // once, so HTTP cannot be a softer path to the same action.
+        if (args.action === 'pin' || args.action === 'unpin' || args.action === 'forget') {
+          const result = await workflowAdmin.run(
+            { action: args.action, path: rel, reason: args.reason, confirm: args.confirm },
+            ws,
+            access
+          )
+          return result.message
         }
 
-        if (args.action === 'forget') {
-          if (!access.isCoordinator) return '拒绝：只有 Curator/主 DSH（orchestrator）可以遗忘工作流。'
-          if (!target) return `没有找到工作流 ${rel}。`
-          if (target.pinned) return `拒绝：${rel} 已固定（永久保留）。先 unpin 再遗忘，否则"永久保留"就失去了意义。`
-          if (args.confirm !== true) {
-            return [
-              `即将遗忘 ${rel}`,
-              `- 状态 ${target.decay.state}｜score=${target.decay.score}｜召回 ${target.decay.useCount} 次`,
-              '内容会移入 .trash/（可捞回），并留下墓碑。确认请再调用一次并传 confirm=true。',
-              '残余（不假装能清）：git 历史里仍可找回旧版本。'
-            ].join('\n')
-          }
-          const moved = await evictNote(rel, args.reason ?? 'manual-forget', 'workflows')
-          if (!moved) return `遗忘失败：${rel} 已不在索引中。`
-          usage.delete(rel)
-          return `已遗忘 ${rel}（移入 .trash/workflows/，墓碑已记）。残余：git 历史里仍可找回。`
-        }
-
-        // sweep
-        const expired = workflows.filter((w) => w.decay.state === 'expired' && !w.pinned)
+        // sweep — the tool's own capability. The build contract keeps it out of the
+        // panel (no per-row sweep button), and it reports before it removes.
+        const expired = workflows.filter((w) => w.state === 'expired' && !w.pinned)
         if (expired.length === 0) return `没有超过遗忘阈值的工作流（阈值 score < 0.18，半衰期 ${cfg.workflowHalfLifeDays} 天）。`
         if (args.confirm !== true) {
           return [
             `超过遗忘阈值的工作流 ${expired.length} 条：`,
-            ...expired.map(describe),
+            ...expired.map(describeWorkflow),
             '',
             '确认清除请再调用一次并传 confirm=true。已固定的不会被清除。'
           ].join('\n')
@@ -2486,8 +2496,215 @@ function apply(ctx, config) {
     }
   }
 
+  // ---- UI routes: an OPTIONAL dependency -------------------------------------
+  // The panel and the knowledge page need the host webserver. They must not be a
+  // hard dependency (see constraint 5 in the file header): a profile without an
+  // HTTP server keeps every memory tool, and the routes are simply not there.
+  const toolByName = new Map(toolList.map((tool) => [tool.name, tool]))
+  const uiDir =
+    cfg.uiDir && String(cfg.uiDir).trim() !== ''
+      ? resolve(String(cfg.uiDir))
+      : join(dirname(fileURLToPath(import.meta.url)), '..', 'ui', 'kb')
+
+  /**
+   * The UI routes receive cwd/session from the host page. Resolve them through
+   * the same marker + coordinator logic as the tools and build the same access
+   * object, so HTTP is not a softer read path.
+   */
+  const accessFor = async (cwd, session) => {
+    const ws = await resolveWorkspace(cwd === '' ? process.cwd() : cwd, {
+      sessionId: session === '' ? null : session
+    })
+    const access = makeAccess({
+      workspace: ws,
+      sessionId: session === '' ? null : session
+    })
+    return { ws, access }
+  }
+  const authorizeFor = (entry, access) =>
+    authorizeEntry(entry, access, {
+      includePending: access?.isCoordinator === true,
+      allowUnmarked: false
+    }).allowed
+
+  const routeDeps = {
+    // Everything below USES the route families but is owned here, so the routes
+    // never reach around the plugin's own state (same convention as the
+    // wallpaper-engine precedent). `disposers` is added per attachment.
+    refresh,
+    index,
+    cfg,
+    vaultRoot,
+    workflowAdmin,
+    auditSources,
+    harvestStatus,
+    accessFor,
+    authorize: authorizeFor,
+    visiblePaths: (access) =>
+      visibleEntries(index, access, {
+        includePending: access?.isCoordinator === true,
+        allowUnmarked: false
+      }).entries.map(([path]) => path),
+    l4View: (ws, access) =>
+      l4View(index, ws, {
+        limit: cfg.l4Limit,
+        credibility,
+        clip,
+        authorize: (entry) => authorizeFor(entry, access)
+      }),
+    // The panel's diagnose block IS `memory_diagnose`'s output, split into lines:
+    // a panel that explained the same scope differently would be a second, quieter
+    // opinion about why memory did or did not appear.
+    diagnoseLines: async ({ cwd, session }) => {
+      const tool = toolByName.get('memory_diagnose')
+      if (!tool) return ''
+      const agent = { workingDirectory: cwd === '' ? process.cwd() : cwd }
+      if (session !== '') agent.session = { id: session }
+      return String(await tool.execute({}, { agent }))
+    },
+    credibility,
+    clip,
+    uiDir,
+    // "Enter the knowledge base" is a HOST action: the desktop window refuses pop-ups
+    // (`setWindowOpenHandler` → deny) and blocks in-place navigation, so the renderer
+    // cannot bring anything up. The user chose Obsidian over the built-in page, so this
+    // hands the vault to Obsidian (registering it first when needed) and only falls back
+    // to the built-in page when Obsidian is not installed. Injectable for tests.
+    openKnowledgeBase: typeof cfg.openKnowledgeBase === 'function' ? cfg.openKnowledgeBase : openKnowledgeBase
+  }
+
+  const routeCleanups = []
+  let lastRouteCount = 0
+  const attachRoutes = (server) => {
+    const owned = []
+    registerMemoryRoutes(server, { ...routeDeps, disposers: owned })
+    lastRouteCount = owned.length
+    const cleanup = () => {
+      for (const dispose of owned.splice(0)) {
+        try {
+          dispose()
+        } catch {
+          // see lib/routes/index.js: one bad handle must not block an unload
+        }
+      }
+    }
+    routeCleanups.push(cleanup)
+    return cleanup
+  }
+  /** Removes every route registered so far (and any attached later). */
+  const disposeRoutes = () => {
+    for (const cleanup of routeCleanups.splice(0)) cleanup()
+  }
+
+  // ── Mounting the HTTP surface, defensively ─────────────────────────────────
+  //
+  // `webServer` is NOT in `inject` on purpose (a hard dependency would drop the
+  // ten tools on any profile without an HTTP server), and this Cordis **throws**
+  // when an undeclared service is read through a bare property. That throw used
+  // to escape `apply()` — the whole row failed, so the client half still rendered
+  // its button while every `/dsh-memory/*` route answered 404 and no `memory_*`
+  // tool existed. Observed exactly that way on the desktop profile on 2026-10-29.
+  //
+  // So: probe through the safe accessor first, fall back to the property inside a
+  // try, and never let any of this abort the rest of the plugin.
+  const readWebServer = () => {
+    try {
+      const viaGet = typeof ctx.get === 'function' ? ctx.get('webServer') : undefined
+      if (viaGet && typeof viaGet.register === 'function') return viaGet
+    } catch {
+      // undeclared or not mounted yet — the property probe below may still win
+    }
+    try {
+      const viaProperty = ctx.webServer
+      return viaProperty && typeof viaProperty.register === 'function' ? viaProperty : null
+    } catch {
+      return null
+    }
+  }
+
+  const uiStatus = {
+    name,
+    vaultRoot: String(vaultRoot),
+    inject: Array.isArray(inject) ? [...inject] : inject,
+    optionalInject: [...OPTIONAL_INJECT],
+    webServer: 'unknown',
+    routeCount: 0,
+    error: null
+  }
+  // A UI that answers 404 is indistinguishable from a UI that never loaded; this
+  // file is the difference. It lands in the vault's git-ignored index directory,
+  // is best-effort, and can never break the plugin.
+  const statusFile = join(vaultRoot, '.kb-index', 'ui-status.json')
+  const reportStatus = (patch) => {
+    Object.assign(uiStatus, patch, { at: new Date().toISOString() })
+    void (async () => {
+      try {
+        await mkdir(dirname(statusFile), { recursive: true })
+        await writeFile(statusFile, `${JSON.stringify(uiStatus, null, 2)}\n`, 'utf8')
+      } catch {
+        // diagnostics never break the product path
+      }
+    })()
+  }
+
+  let webServer = readWebServer()
+  if (webServer === null) {
+    ctx.logger?.warn?.(NO_WEBSERVER_WARN)
+    // `webServer` may still mount LATER (rows mount concurrently, and the loader
+    // makes no ordering promise). Asking for it through a child fiber is this
+    // Cordis's way to want a service without depending on it: the callback runs
+    // when the service appears, and if it never does, nothing here ever runs —
+    // which is exactly the "skip registration, keep the tools" behaviour.
+    reportStatus({ webServer: 'absent', routeCount: 0 })
+    try {
+      ctx.inject?.(['webServer'], (sub) => {
+        let server = null
+        try {
+          server = sub?.webServer ?? null
+        } catch {
+          server = null
+        }
+        if (!server || typeof server.register !== 'function') {
+          reportStatus({ webServer: 'late-but-unusable', routeCount: 0 })
+          return
+        }
+        const owned = []
+        // Registered before the first route so a half-failed attach still unwinds.
+        sub.effect?.(() => () => {
+          for (const dispose of owned.splice(0)) {
+            try {
+              dispose()
+            } catch {
+              // the service this route lived on is going away regardless
+            }
+          }
+        })
+        try {
+          registerMemoryRoutes(server, { ...routeDeps, disposers: owned })
+          reportStatus({ webServer: 'late', routeCount: owned.length })
+          ctx.logger?.info?.('dsh-memory: webServer 已就绪，UI 路由已注册')
+        } catch (error) {
+          reportStatus({ webServer: 'late-failed', error: String(error?.message ?? error) })
+          ctx.logger?.warn?.(`dsh-memory: UI 路由注册失败：${error?.message ?? error}`)
+        }
+      })
+    } catch (error) {
+      reportStatus({ webServer: 'cannot-listen', error: String(error?.message ?? error) })
+      ctx.logger?.warn?.(`dsh-memory: 无法监听 webServer：${error?.message ?? error}`)
+    }
+  } else {
+    try {
+      attachRoutes(webServer)
+      reportStatus({ webServer: 'direct', routeCount: lastRouteCount })
+    } catch (error) {
+      reportStatus({ webServer: 'direct-failed', error: String(error?.message ?? error) })
+      ctx.logger?.warn?.(`dsh-memory: UI 路由注册失败：${error?.message ?? error}`)
+      disposeRoutes()
+    }
+  }
+
   // ---- injection -----------------------------------------------------------
-  if (cfg.autoInject === false) return
+  if (cfg.autoInject === false) return disposeRoutes
 
   // Session ids are strings, so they need a Map; agent objects need a WeakMap.
   // Using one WeakMap for both threw "Invalid value used as weak map key".
@@ -2547,9 +2764,14 @@ function apply(ctx, config) {
       return decision
     }
   })
+
+  // Cordis collects a plugin's returned function as its disposer: this is what
+  // makes the routes "registered through the fiber" — an unload (or an HMR
+  // reload) removes every route, including any attached after this line ran.
+  return disposeRoutes
 }
 
-export { apply, name, inject, DEFAULT_CONFIG, buildSectionText, renderNote, buildOrQuery }
+export { apply, name, inject, OPTIONAL_INJECT, DEFAULT_CONFIG, buildSectionText, renderNote, buildOrQuery }
 export { createMemoryPackContext, createMemoryPackService, MemoryPackError, MEMORYPACK_CONTRACT_VERSION, assertMemoryPackContractVersion } from './memory/memorypack.js'
 export { makeAccess, authorizeEntry, authorizeCitation, authorizePath, visibleEntries, visibilityOf, scopeOf, reviewStateOf, statusOf } from './memory/access.js'
 export default { apply, name, inject }
