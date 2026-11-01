@@ -1,6 +1,6 @@
-# MemoryPack v1.1 cross-repo fixtures
+# MemoryPack v1.2 cross-repo fixtures
 
-`memorypack.v1.1.dsh-memory.json` is a **synthetic** MemoryPack v1.1.0 produced by
+`memorypack.v1.2.dsh-memory.json` is a **synthetic** MemoryPack v1.2.0 produced by
 the dsh-memory producer. It is not a real vault export and contains no real
 workspace, credential, provider or DSH data.
 
@@ -9,7 +9,7 @@ workspace, credential, provider or DSH data.
 From the `dsh-memory` repository root:
 
 ```text
-node tools/memorypack.fixture.mjs tools/fixtures/memorypack.v1.1.dsh-memory.json
+node tools/memorypack.fixture.mjs tools/fixtures/memorypack.v1.2.dsh-memory.json
 ```
 
 The generator builds a temporary synthetic vault, runs the offline MemoryPack
@@ -22,7 +22,7 @@ the JSON; regenerate it.
 - Repository: `dsh-memory`
 - Base main commit: `4270b6886bf71804ac173155d60320c0c2f43d5c`
 - Branch: `fix/fleet-v3-round2-memory-hardening` (round-2 hardening working tree)
-- Contract: `MEMORYPACK_V1_1.md` v1.1.0
+- Contract: `MEMORYPACK_V1_2.md` v1.2.0
 
 ## Contents
 
@@ -40,7 +40,7 @@ The fixture exercises:
 ## Consumer
 
 The Workbench repository validates this generated pack in its cross-repo
-MemoryPack v1.1 schema/semantic test (version, scope, role, entry fields, NFC
+MemoryPack v1.2 schema/semantic test (version, scope, role, entry fields, NFC
 paths, `excluded` counts, layer-then-code-point entry order,
 `policy.cross_workspace`, and `snapshot_hash` consistency). The pack is copied
 unchanged into Workbench's own fixture directory; this repository does not

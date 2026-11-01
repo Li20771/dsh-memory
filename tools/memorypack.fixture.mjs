@@ -6,7 +6,7 @@
 //
 // Offline only: no DSH, MCP, provider, network or real vault access.
 //
-//   node tools/memorypack.fixture.mjs tools/fixtures/memorypack.v1.1.dsh-memory.json
+//   node tools/memorypack.fixture.mjs tools/fixtures/memorypack.v1.2.dsh-memory.json
 
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path'
 import { renderNote } from '../plugin/lib/index.js'
 import { createMemoryPackContext, createMemoryPackService } from '../plugin/lib/memory/memorypack.js'
 
-const DEFAULT_OUTPUT = 'tools/fixtures/memorypack.v1.1.dsh-memory.json'
+const DEFAULT_OUTPUT = 'tools/fixtures/memorypack.v1.2.dsh-memory.json'
 const WORKSPACE_ID = 'ws_a'
 const EPISODE_ID = 'ep_1'
 const RUN_ID = 'run_11111111111111111111111111111111'

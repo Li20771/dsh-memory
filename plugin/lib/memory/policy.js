@@ -26,6 +26,12 @@ export const KNOWN_TYPES = new Set([
   'workspace',
   'workflow',
   'memory',
+  // `knowledge` is a general knowledge-base note. It was previously absent from
+  // the admission set and only survived because the MemoryPack layer resolver
+  // fell back to KB for anything unrecognised. With that fallback removed
+  // (MemoryPack v1.2.0) it must be admitted explicitly, or existing notes typed
+  // `knowledge` would be counted as `unspecified_layer` and dropped from packs.
+  'knowledge',
   'project',
   'research',
   'finding',

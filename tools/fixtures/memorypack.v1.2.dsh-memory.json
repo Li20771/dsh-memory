@@ -1,7 +1,7 @@
 {
-  "contract_version": "1.1.0",
-  "snapshot_id": "mp_5329e5bcc1955fb7aa40634bf65b5d8d",
-  "snapshot_hash": "5329e5bcc1955fb7aa40634bf65b5d8d98f3ca7150358c1140cefc79cac718a7",
+  "contract_version": "1.2.0",
+  "snapshot_id": "mp_ee2de62602ab526bcf4291152734e0b9",
+  "snapshot_hash": "ee2de62602ab526bcf4291152734e0b9700664bda887c115bffc5d69502f3584",
   "generated_at": "2026-10-30T00:00:00.000Z",
   "read_only": true,
   "scope": {
@@ -67,11 +67,12 @@
     "restricted": 0,
     "unmarked": 1,
     "path_invalid": 0,
-    "entry_invalid": 0
+    "entry_invalid": 0,
+    "unspecified_layer": 0
   },
   "source": {
     "vault": "dsh-memory",
-    "contract_version": "1.1.0"
+    "contract_version": "1.2.0"
   },
   "policy": {
     "authorized_before_retrieval": true,

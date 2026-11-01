@@ -34,7 +34,7 @@ import {
   visibilityOf
 } from './access.js'
 
-export const MEMORYPACK_CONTRACT_VERSION = '1.1.0'
+export const MEMORYPACK_CONTRACT_VERSION = '1.2.0'
 
 /**
  * Owner value for an explicit `user-global` entry that has no origin workspace.
@@ -57,7 +57,16 @@ export const MEMORYPACK_ERROR_CODES = Object.freeze([
 const ROLE_SET = new Set(ROLES)
 const LAYER_ORDER = Object.freeze({ L1: 1, L2: 2, L3: 3, L4: 4, KB: 5 })
 const PACK_VISIBILITIES = new Set(['user-global', 'workspace-shared', 'episode-shared', 'run-private'])
-const KB_TYPES = new Set(['project', 'research', 'finding', 'decision', 'question', 'log', 'artifact'])
+const KB_TYPES = new Set([
+  'knowledge', // general knowledge-base note (admitted since v1.2.0)
+  'project',
+  'research',
+  'finding',
+  'decision',
+  'question',
+  'log',
+  'artifact'
+])
 const PACK_TYPES = new Set(['memory', 'knowledge', 'episode', 'map', 'reference'])
 
 const AUTHORITY_MAP = Object.freeze({
@@ -207,6 +216,18 @@ export function isTrustedMemoryPackContext(context) {
 
 // ------------------------------------------------------------------- mapping
 
+/**
+ * Resolve a record's layer, or `null` when it cannot be resolved.
+ *
+ * v1.2.0 removes the silent `KB` fallback. KB is the layer for knowledge and
+ * research output (`project|research|finding|decision|question|log|artifact`)
+ * plus `harvest` reports; it is NOT a container for records nobody classified.
+ * Returning `KB` for an unknown `type` polluted that semantic and pushed the
+ * record to the tail of the pack, where `max_entries` truncates first.
+ *
+ * `null` means "unresolved": the caller must count it as `unspecified_layer`
+ * and exclude it from `entries` rather than guess a layer.
+ */
 function layerOf(entry) {
   const fm = entry?.parsed?.frontmatter ?? {}
   const type = String(fm.type ?? '').toLowerCase()
@@ -215,8 +236,10 @@ function layerOf(entry) {
   if (type === 'workflow') return 'L3'
   if (type === 'memory') return 'L4'
   if (KB_TYPES.has(type) || type === 'harvest') return 'KB'
+  // An explicit, valid `layer` field is the only other accepted source.
   const explicit = String(fm.layer ?? '').toUpperCase()
-  return Object.prototype.hasOwnProperty.call(LAYER_ORDER, explicit) ? explicit : 'KB'
+  if (Object.prototype.hasOwnProperty.call(LAYER_ORDER, explicit)) return explicit
+  return null
 }
 
 function packTypeOf(entry) {
@@ -342,6 +365,9 @@ function buildEntry(path, entry, access, index) {
   if (episodeId !== null && !PACK_SCOPE_ID_PATTERN.test(episodeId)) {
     return { ok: false, reason: 'entry_invalid' }
   }
+  // v1.2.0: an unresolvable layer is its own exclusion reason, never a guess.
+  const layer = layerOf(entry)
+  if (layer === null) return { ok: false, reason: 'unspecified_layer' }
   const revision = revisionOf(body)
   const entryId = `mem_${sha256Json({ path: normalizedPath, revision }).slice(0, 32)}`
   return {
@@ -349,7 +375,7 @@ function buildEntry(path, entry, access, index) {
     entry: {
       entry_id: entryId,
       path: normalizedPath,
-      layer: layerOf(entry),
+      layer,
       type: packTypeOf(entry),
       title: titleOf(entry, normalizedPath),
       visibility,
@@ -515,7 +541,8 @@ export function createMemoryPackService(options = {}) {
         restricted: 0,
         unmarked: 0,
         path_invalid: 0,
-        entry_invalid: 0
+        entry_invalid: 0,
+        unspecified_layer: 0
       }
       const included = []
       for (const path of index.paths()) {
