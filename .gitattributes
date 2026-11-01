@@ -1,0 +1,17 @@
+# Conformance fixtures are byte-exact evidence.
+#
+# `tools/spec-assertions.json` records offsets measured against Obsidian 1.13.7
+# reading these files as LF (for example sub-02 expects a block at 10..48). With
+# core.autocrlf=true a Windows checkout rewrites them to CRLF, every offset grows
+# by the number of preceding line breaks, and the conformance suite fails on a
+# machine where the code is fine. Pin the Markdown fixtures to LF so they mean
+# the same thing everywhere.
+#
+# Only `*.md` is listed. Attachments (pixel.png, min.pdf) and the .obsidian /
+# .canvas JSON are byte-exact assets: never mark them `text`, or Git rewrites
+# them and the fixture stops matching what the reverse-engineering recorded.
+research/fixtures/**/*.md text eol=lf
+
+# The parser is still required to cope with CRLF *content* (notes written on
+# Windows outside git); tools/vault.test.mjs covers that with an inline CRLF
+# document rather than relying on the checkout.
