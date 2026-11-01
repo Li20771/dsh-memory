@@ -23,6 +23,16 @@ const HEADING_RE = /^(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/
 const FENCE_RE = /^[ \t]*(`{3,}|~{3,})/
 const INLINE_CODE_RE = /`[^`\n]*`/g
 
+/**
+ * Drop a single trailing carriage return.
+ *
+ * The vault holds notes authored on Windows (CRLF) and on POSIX (LF). Block and
+ * key regexes anchor at `$`, so a stray `\r` makes an otherwise valid line look
+ * unparseable. Normalising one `\r` keeps both handlings identical without
+ * touching offsets in the original text.
+ */
+const stripCarriageReturn = (line) => (line.endsWith('\r') ? line.slice(0, -1) : line)
+
 const indentOf = (line) => line.length - line.trimStart().length
 const isBlank = (line) => line.trim() === ''
 const isComment = (line) => line.trim().startsWith('#') && !/^#{1,6}[ \t]/.test(line.trim())
@@ -223,29 +233,39 @@ function parseBlock(lines, i, indent, warnings) {
  * @returns {string} same-length mask
  */
 export function maskCode(text) {
-  const lines = String(text).split('\n')
+  const rawLines = String(text).split('\n')
+  const lines = []
   let inFence = false
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (FENCE_RE.test(line)) {
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]
+    // Classify against a copy without the CRLF carriage return. Every anchored
+    // regex here (FENCE_RE, LIST_ITEM_RE, HEADING_RE) ends in `$`, so on a CRLF
+    // note the `\r` makes a list item look like indented code and the fence
+    // markers stop toggling. Masking still preserves the original length, so the
+    // emitted mask lines up with the original text offset for offset.
+    const logical = stripCarriageReturn(line)
+    if (FENCE_RE.test(logical)) {
       inFence = !inFence
-      lines[i] = ' '.repeat(line.length)
+      lines.push(' '.repeat(line.length))
       continue
     }
     if (inFence) {
-      lines[i] = ' '.repeat(line.length)
+      lines.push(' '.repeat(line.length))
       continue
     }
     // Indented code block: four spaces or a tab. A tab-indented LIST ITEM is not
     // code (nested bullets look exactly like that), so list lines are exempt —
     // masking them would erase block ids on nested items.
-    const indent = line.length - line.trimStart().length
-    const indentedCode = /^(?: {4}|\t)/.test(line) && line.trim() !== '' && !LIST_ITEM_RE.test(line)
+    const indent = logical.length - logical.trimStart().length
+    const indentedCode = /^(?: {4}|\t)/.test(logical) && logical.trim() !== '' && !LIST_ITEM_RE.test(logical)
     if (indentedCode && indent >= 1) {
-      lines[i] = ' '.repeat(line.length)
+      lines.push(' '.repeat(line.length))
       continue
     }
-    lines[i] = line.replace(INLINE_CODE_RE, (s) => ' '.repeat(s.length))
+    // Inline-code masking runs on the logical line and is re-padded to the
+    // original width, so a trailing `\r` cannot shift the output length.
+    const maskedLine = logical.replace(INLINE_CODE_RE, (s) => ' '.repeat(s.length))
+    lines.push(line.length === logical.length ? maskedLine : maskedLine + line.slice(logical.length))
   }
   return lines.join('\n')
 }
@@ -271,7 +291,12 @@ function takeFrontmatter(text) {
   const blockStart = firstBreak + 1
   const blockEnd = firstBreak + close.index
   const bodyOffset = firstBreak + close.index + close[0].length
-  const lines = text.slice(blockStart, blockEnd).split('\n')
+  // Strip the trailing `\r` of each line so a CRLF note parses exactly like its
+  // LF equivalent. Without this every `key: value` line fails KEY_RE and the
+  // whole frontmatter silently degrades to null — which would drop visibility,
+  // review and scope from a Windows-authored note and exclude it from packs.
+  // Only the block copy is normalised; offsets still point into the original.
+  const lines = text.slice(blockStart, blockEnd).split('\n').map(stripCarriageReturn)
   const [value] = parseBlock(lines, 0, 0, warnings)
   return { value: value && typeof value === 'object' ? value : {}, bodyOffset, warnings }
 }
@@ -315,7 +340,14 @@ export function parseNote(text, options = {}) {
   const body = source.slice(bodyOffset)
   const masked = maskCode(body)
   const starts = lineStarts(body)
-  const lines = body.split('\n')
+  // Every anchored regex below (`HEADING_RE`, `LIST_ITEM_RE`, frontmatter keys)
+  // ends in `$`. On a note stored with CRLF each line keeps a trailing `\r`, so
+  // those regexes fail and the damage is silent: headings and list items
+  // degrade to paragraphs, block ids attached to them stop resolving, and a
+  // frontmatter block can parse as null. Normalising the line copy fixes the
+  // classification; offsets still come from `starts`, so citations keep
+  // pointing at the exact characters in the original file.
+  const lines = body.split('\n').map(stripCarriageReturn)
 
   const lineEnd = (i) => (i + 1 < starts.length ? starts[i + 1] - 1 : body.length)
 

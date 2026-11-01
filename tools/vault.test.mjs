@@ -47,6 +47,64 @@ body here`
   assert.equal(doc.slice(note.bodyOffset), 'body here')
 })
 
+test('frontmatter: a CRLF note parses the same as its LF equivalent', () => {
+  // A vault authored on Windows holds notes that are CRLF on disk. Before the
+  // line normalisation every key line failed to match and the whole frontmatter
+  // became null, which silently strips visibility/review/scope and excludes the
+  // note from worker packs. Offsets must still index the original text.
+  const lf = [
+    '---',
+    'title: Hello World',
+    'visibility: workspace-shared',
+    'scope: ws_a/ep_1',
+    'review:',
+    '  state: approved',
+    'list:',
+    '  - one',
+    '  - two',
+    '---',
+    '',
+    '# Heading',
+    '',
+    '- list item ^li-1',
+    '  - nested child ^li-2',
+    '',
+    'body here'
+  ].join('\n')
+  const crlf = lf.replace(/\n/g, '\r\n')
+
+  const noteLf = parseNote(lf)
+  const noteCrlf = parseNote(crlf)
+
+  assert.deepEqual(noteCrlf.frontmatter, noteLf.frontmatter)
+  assert.equal(noteCrlf.frontmatter.visibility, 'workspace-shared')
+  assert.equal(noteCrlf.frontmatter.review.state, 'approved')
+  assert.deepEqual(noteCrlf.frontmatter.list, ['one', 'two'])
+  assert.deepEqual(noteCrlf.warnings, [])
+
+  // Offsets must address the original CRLF string, not the stripped copy, so a
+  // citation still highlights the exact characters a human will open.
+  assert.equal(
+    crlf.slice(noteCrlf.bodyOffset).replace(/\r\n/g, '\n'),
+    '\n# Heading\n\n- list item ^li-1\n  - nested child ^li-2\n\nbody here'
+  )
+
+  // Block classification must survive the line ending too, and each block's
+  // offsets must still address the original CRLF document.
+  const crlfBlocks = new Map(noteCrlf.blocks.filter((b) => b.id).map((b) => [b.id, b]))
+  assert.equal(crlfBlocks.get('li-1')?.kind, 'list-item')
+  assert.equal(crlfBlocks.get('li-2')?.kind, 'list-item')
+  for (const block of crlfBlocks.values()) {
+    const sliced = crlf.slice(noteCrlf.bodyOffset + block.start, noteCrlf.bodyOffset + block.end)
+    assert.equal(
+      sliced.replace(/\r\n/g, '\n').trimEnd(),
+      block.text.replace(/\r\n/g, '\n').trimEnd(),
+      `${block.id} text must correspond to its original byte range`
+    )
+    assert.ok(sliced.startsWith(block.text.trimEnd().split('\r\n')[0]), `${block.id} starts where it says`)
+  }
+})
+
 test('frontmatter: quoted values, block-list of maps', () => {
   const doc = `---
 title: "with: colon"
