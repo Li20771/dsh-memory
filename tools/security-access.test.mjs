@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import plugin, { renderNote } from '../plugin/lib/index.js'
+import { inAuthorizedSlice, makeAccess } from '../plugin/lib/memory/access.js'
 import { writeMarker } from '../plugin/lib/workspace.js'
 
 const RUN_ID = 'run_abc12345'
@@ -627,4 +628,77 @@ test('binding: a worker binding overrides the marker coordinator list, and misma
   } finally {
     await rm(base, { recursive: true, force: true })
   }
+})
+
+test('binding: a present binding without role is invalid and never inherits marker coordinator', () => {
+  const incomplete = makeAccess({
+    workspace: { id: 'ws_a', episode: 'ep_1', role: 'coordinator' },
+    binding: { workspaceId: 'ws_a', episodeId: 'ep_1', runId: RUN_ID }
+  })
+  assert.equal(incomplete.bindingInvalid, true)
+  assert.equal(incomplete.bindingMismatch, true)
+  assert.equal(incomplete.isCoordinator, false, 'missing binding role must not fall back to the marker')
+  assert.notEqual(incomplete.role, 'orchestrator')
+
+  const noBinding = makeAccess({ workspace: { id: 'ws_a', episode: 'ep_1', role: 'coordinator' } })
+  assert.equal(noBinding.bindingInvalid, false)
+  assert.equal(noBinding.isCoordinator, true, 'marker coordinator still applies when no binding exists')
+})
+
+test('binding: coordinator-only tool is denied when the host binding omits role', async () => {
+  const { base, cwd, byName } = await fixture()
+  try {
+    const denied = await byName.get('memory_write').execute(
+      { type: 'memory', title: 'x', body: 'x' },
+      withBinding(coord(cwd), { workspaceId: 'ws_a', episodeId: 'ep_1', runId: RUN_ID })
+    )
+    assert.ok(denied.includes('拒绝'), denied)
+  } finally {
+    await rm(base, { recursive: true, force: true })
+  }
+})
+
+// ------------------------------------------------- authorization counters
+
+test('counters: malformed scope is outside the authorized slice for every visibility', () => {
+  const access = makeAccess({ workspace: { id: 'ws_a', episode: 'ep_1', role: 'worker' } })
+  const runAccess = makeAccess({
+    workspace: { id: 'ws_a', episode: 'ep_1', role: 'worker' },
+    binding: { workspaceId: 'ws_a', episodeId: 'ep_1', role: 'researcher', runId: RUN_ID }
+  })
+  const entry = (frontmatter) => ({ parsed: { frontmatter, body: '' } })
+
+  // A malformed scope drops the record BEFORE its visibility branch is reached.
+  assert.equal(inAuthorizedSlice(entry({ visibility: 'user-global', scope: '../ws_b' }), access), false)
+  assert.equal(
+    inAuthorizedSlice(entry({ visibility: 'run-private', scope: '../ws_b', run_id: RUN_ID }), runAccess),
+    false,
+    'matching run_id does not rescue a malformed scope'
+  )
+  assert.equal(inAuthorizedSlice(entry({ visibility: 'workspace-shared', scope: '../ws_b' }), access), false)
+  assert.equal(inAuthorizedSlice(entry({ visibility: 'episode-shared', scope: 'ws_a/../ep_1' }), access), false)
+
+  // Positive control: a valid same-workspace scoped unmarked legacy record is
+  // counted (so its omission from a pack is visible).
+  assert.equal(inAuthorizedSlice(entry({ type: 'memory', scope: 'ws_a' }), access), true)
+  // Foreign and unscoped records do not enter authorized counts.
+  assert.equal(inAuthorizedSlice(entry({ visibility: 'workspace-shared', scope: 'ws_b' }), access), false)
+  assert.equal(inAuthorizedSlice(entry({ visibility: 'workspace-shared' }), access), false)
+})
+
+test('counters: an invalid or mismatched access context authorizes no slice', () => {
+  const valid = { parsed: { frontmatter: { visibility: 'workspace-shared', scope: 'ws_a' }, body: '' } }
+  const invalidBinding = makeAccess({
+    workspace: { id: 'ws_a', episode: 'ep_1', role: 'coordinator' },
+    binding: { workspaceId: 'ws_a', episodeId: 'ep_1' }
+  })
+  assert.equal(invalidBinding.bindingInvalid, true)
+  assert.equal(inAuthorizedSlice(valid, invalidBinding), false)
+
+  const mismatched = makeAccess({
+    workspace: { id: 'ws_a', episode: 'ep_1', role: 'coordinator' },
+    binding: { workspaceId: 'ws_b', episodeId: 'ep_1', role: 'researcher', runId: RUN_ID }
+  })
+  assert.equal(mismatched.bindingMismatch, true)
+  assert.equal(inAuthorizedSlice(valid, mismatched), false)
 })

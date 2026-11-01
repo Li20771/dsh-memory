@@ -365,18 +365,38 @@ function buildEntry(path, entry, access, index) {
   }
 }
 
+/**
+ * Locale-independent string order.
+ *
+ * The snapshot and the `max_entries` selection are part of the cross-repo
+ * contract, so their order must not depend on the host locale, ICU data, or
+ * UTF-16 surrogate layout. Compare Unicode code points (via `Array.from`, which
+ * iterates by code point); a shorter string that is a prefix sorts first.
+ * `localeCompare` and whole-string `<`/`>` must not be used for these orderings.
+ */
+export function compareCodePoints(left, right) {
+  const a = Array.from(String(left ?? ''))
+  const b = Array.from(String(right ?? ''))
+  const shared = Math.min(a.length, b.length)
+  for (let i = 0; i < shared; i++) {
+    const leftPoint = a[i].codePointAt(0)
+    const rightPoint = b[i].codePointAt(0)
+    if (leftPoint !== rightPoint) return leftPoint < rightPoint ? -1 : 1
+  }
+  if (a.length === b.length) return 0
+  return a.length < b.length ? -1 : 1
+}
+
 function sortForSnapshot(entries) {
-  return [...entries].sort((left, right) => {
-    if (left.path < right.path) return -1
-    if (left.path > right.path) return 1
-    return left.revision.localeCompare(right.revision)
-  })
+  return [...entries].sort(
+    (left, right) => compareCodePoints(left.path, right.path) || compareCodePoints(left.revision, right.revision)
+  )
 }
 
 function sortForSelection(entries) {
   return [...entries].sort(
     (left, right) =>
-      (LAYER_ORDER[left.layer] ?? 99) - (LAYER_ORDER[right.layer] ?? 99) || left.path.localeCompare(right.path)
+      (LAYER_ORDER[left.layer] ?? 99) - (LAYER_ORDER[right.layer] ?? 99) || compareCodePoints(left.path, right.path)
   )
 }
 
@@ -511,6 +531,8 @@ export function createMemoryPackService(options = {}) {
         else excluded[built.reason]++
       }
 
+      // `included` only contains entries that passed authorizeEntry/buildEntry,
+      // so truncation can never let a foreign record take a slot.
       const selected = sortForSelection(included).slice(0, context.max_entries)
       const scope = { workspace_id: context.workspace_id, episode_id: context.episode_id }
       const snapshotHash = sha256Json({
