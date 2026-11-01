@@ -267,12 +267,21 @@ DSH 顶栏的「记忆」面板与知识库入口均已实现并合入 `main`：
 **验证范围（区分自动与手工，不混为一谈）：**
 
 - `tools/ui-contract.test.mjs` + `tools/ui-routes.test.mjs`：**42 个自动测试**，覆盖路由表、
-  跨边契约一致性、前缀单真源，以及「`obsidian://open?vault=` 交接必须存在」的源码断言。
+  跨边契约一致性、前缀单真源。
+- `tools/kb-open.test.mjs`：**16 个自动测试**，对知识库入口做**行为级**覆盖——不再只是
+  "源码里提到了 `obsidian://`"。覆盖 vault 缺失 / Obsidian 未安装的回退、已注册时不写入、
+  首次注册写入一次并留一份备份、重复打开幂等、registry 不可读/不可写时仍触发 URI 且如实
+  报错而不抛出、`open` 标志只留在新 vault 上、大小写不敏感去重，以及跨平台路径、vault id
+  与 URI 百分号编码。
 - `tools/ui-live-proof.mjs`：**手工运行的静态端到端证明**（不属于 `node --test` 套件）。
-  它用桩 `webServer` 按宿主方式挂载插件，驱动契约路由打到本机真实 vault，验证
-  `mode: 'obsidian'`、URI 形状、Windows 注册表路径与 `planObsidianOpen` 的决策。
-- **两者都不等于浏览器验证**：按钮落位、主题 token、Electron 实际渲染需要真实重启桌面后
+  它用桩 `webServer` 按宿主方式挂载插件，驱动契约路由打到本机真实 vault。
+- **以上都不等于浏览器验证**：按钮落位、主题 token、Electron 实际渲染需要真实重启桌面后
   人工确认，这一点脚本自己也写明。
+
+> **测试安全约束：** `openKnowledgeBase` 的默认参数是**用户的真实** `obsidian.json`。
+> `kb-open.test.mjs` 里所有依赖都必须经 `depsFor()` 构造，它把 registry 绑定到临时目录，
+> 并在拿到真实路径时直接抛错；另有一个守护测试断言真实 registry 在测试前后逐字节不变。
+> 这条约束是事后补的——开发这套测试时曾因漏注入而把临时 vault 写进了真实配置，已从备份还原。
 
 ### 已知边界（不是缺陷，是显式记录的取舍）
 

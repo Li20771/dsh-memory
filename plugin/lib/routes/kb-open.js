@@ -126,8 +126,14 @@ function launchUri(uri) {
   else launch('xdg-open', [uri])
 }
 
-/** The built-in read-only page, used when Obsidian is not available. */
-export function openBuiltInPage(host) {
+/**
+ * The built-in read-only page, used when Obsidian is not available.
+ *
+ * `deps.launch` is injectable so a test can assert the chosen URL without
+ * actually starting a browser. Production always uses the real launcher.
+ */
+export function openBuiltInPage(host, deps = {}) {
+  const launchFn = typeof deps.launch === 'function' ? deps.launch : launch
   const base = typeof host === 'string' && host !== '' ? `http://${host}` : 'http://127.0.0.1'
   let url = KB.page
   try {
@@ -135,30 +141,42 @@ export function openBuiltInPage(host) {
   } catch {
     url = KB.page
   }
-  if (process.platform === 'win32') launch('cmd', ['/c', 'start', '', url])
-  else if (process.platform === 'darwin') launch('open', [url])
-  else launch('xdg-open', [url])
+  if (process.platform === 'win32') launchFn('cmd', ['/c', 'start', '', url])
+  else if (process.platform === 'darwin') launchFn('open', [url])
+  else launchFn('xdg-open', [url])
   return { mode: 'browser', url }
 }
 
 /**
  * Open the memory vault in Obsidian, or the built-in page when Obsidian is unavailable.
+ *
+ * The three side-effecting collaborators are injectable for the same reason as
+ * `registerKbOpenRoutes` injects `openKnowledgeBase`: a test must be able to
+ * assert the decision (which mode, which URI, whether the registry changed)
+ * without launching Obsidian, opening a browser, or touching the real
+ * `obsidian.json`. Production call sites pass no `deps` and get the real ones.
+ *
  * @param {{vaultPath:string, host?:string}} input
+ * @param {{launchUri?:Function, openBuiltInPage?:Function, ensureObsidianVault?:Function}} [deps]
  * @returns {{mode:'obsidian'|'browser', uri:string|null, url:string|null, registered:boolean, wrote:boolean, error:string|null}}
  */
-export function openKnowledgeBase(input) {
+export function openKnowledgeBase(input, deps = {}) {
+  const launchUriFn = typeof deps.launchUri === 'function' ? deps.launchUri : launchUri
+  const fallbackFn = typeof deps.openBuiltInPage === 'function' ? deps.openBuiltInPage : openBuiltInPage
+  const ensureFn = typeof deps.ensureObsidianVault === 'function' ? deps.ensureObsidianVault : ensureObsidianVault
+
   const vaultPath = input && typeof input.vaultPath === 'string' && input.vaultPath !== '' ? input.vaultPath : ''
   if (!existsSync(vaultPath)) {
-    const fallback = openBuiltInPage(input?.host)
+    const fallback = fallbackFn(input?.host)
     return { mode: fallback.mode, uri: null, url: fallback.url, registered: false, wrote: false, error: 'vault path does not exist' }
   }
-  const ensured = ensureObsidianVault(vaultPath)
+  const ensured = ensureFn(vaultPath)
   if (!ensured.installed) {
-    const fallback = openBuiltInPage(input?.host)
+    const fallback = fallbackFn(input?.host)
     return { mode: fallback.mode, uri: null, url: fallback.url, registered: false, wrote: false, error: 'obsidian not installed' }
   }
   const uri = obsidianUriFor(vaultPath)
-  launchUri(uri)
+  launchUriFn(uri)
   return { mode: 'obsidian', uri, url: null, registered: ensured.registered, wrote: ensured.wrote, error: ensured.error }
 }
 
