@@ -126,7 +126,11 @@ export function makeAccess(input = {}) {
 
   if (rawBinding) {
     if (bindingWorkspace === null) bindingInvalid = true
-    if (bindingRole !== null && !ROLE_SET.has(bindingRole)) bindingInvalid = true
+    // A binding is authoritative when present. If it does not say who the caller
+    // is, the context is incomplete: never fall back to the workspace marker's
+    // coordinator identity. Coordinator privileges require an explicit role.
+    if (bindingRole === null) bindingInvalid = true
+    else if (!ROLE_SET.has(bindingRole)) bindingInvalid = true
     if (bindingWorkspace !== null) {
       try {
         safeScopeId(bindingWorkspace)
@@ -160,8 +164,11 @@ export function makeAccess(input = {}) {
 
   // A binding cannot upgrade a worker to coordinator: coordinator status comes
   // from the binding role (or, without a binding, from the workspace marker).
-  const role = bindingRole ?? (workspace?.role === 'coordinator' ? 'orchestrator' : 'worker')
-  const isCoordinator = bindingRole !== null ? bindingRole === 'orchestrator' : workspace?.role === 'coordinator'
+  // A present binding always suppresses the marker fallback, even when its role
+  // is missing, so an incomplete binding can never inherit coordinator power.
+  const role = bindingRole ?? (rawBinding === null && workspace?.role === 'coordinator' ? 'orchestrator' : 'worker')
+  const isCoordinator =
+    bindingRole !== null ? bindingRole === 'orchestrator' : rawBinding === null && workspace?.role === 'coordinator'
 
   return Object.freeze({
     workspaceId: workspaceId ?? null,
@@ -229,9 +236,16 @@ export function corpusKeyFor(access, options = {}) {
  * invalid scope is dropped and never counted.
  */
 export function inAuthorizedSlice(entry, access) {
+  // A context whose binding is invalid or mismatched is not an authorized slice
+  // at all: nothing it can see may contribute to counts or diagnostics.
+  if (!access || access.bindingInvalid === true || access.bindingMismatch === true) return false
   const visibility = visibilityOf(entry)
   const scope = scopeOf(entry)
+  // Fail closed before any visibility-specific branch. A malformed scope is not
+  // countable even for `user-global` and `run-private`, whose branches would
+  // otherwise skip the structural check.
   if (visibility === 'invalid') return false
+  if (scope.invalid) return false
   if (visibility === 'user-global') return true
   if (visibility === 'workspace-shared' || visibility === 'episode-shared' || visibility === 'restricted') {
     if (!scope.workspaceId || scope.workspaceId !== access?.workspaceId) return false

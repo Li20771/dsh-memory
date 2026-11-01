@@ -7,7 +7,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -18,6 +18,7 @@ import {
   MemoryPackError,
   assertMemoryPackContractVersion,
   canonicalJson,
+  compareCodePoints,
   createMemoryPackContext,
   createMemoryPackService,
   sha256Json
@@ -227,6 +228,27 @@ async function serviceFor(vaultRoot, options = {}) {
   return service
 }
 
+/** In-memory index so ordering tests do not depend on filesystem enumeration. */
+function fakeService(entries) {
+  const map = new Map(
+    entries.map(([path, frontmatter, body]) => [path, { path, parsed: { frontmatter, body } }])
+  )
+  const index = {
+    version: 1,
+    paths: () => [...map.keys()],
+    get: (path) => map.get(path),
+    refresh: async () => {},
+    rebuild: async () => {}
+  }
+  return createMemoryPackService({
+    vaultRoot: 'fake-vault',
+    index,
+    workspace: { id: 'ws_a', episode: 'ep_1' },
+    now: () => '2026-10-30T00:00:00.000Z',
+    refreshOnGet: false
+  })
+}
+
 test('pack includes only the authorized slice, and excludes foreign records without counting them', async () => {
   const { base, vaultRoot } = await fixture()
   try {
@@ -381,6 +403,93 @@ test('max_entries truncates after authorization; foreign records cannot take a s
   } finally {
     await rm(base, { recursive: true, force: true })
   }
+})
+
+// ------------------------------------------------- deterministic ordering
+
+const ORDER_FIXTURE_PATHS = ['a/😀.md', 'a/\uE000.md', 'z.md', 'Ä.md', 'é.md']
+const CODE_POINT_ORDER = ['a/\uE000.md', 'a/😀.md', 'z.md', 'Ä.md', 'é.md']
+
+function orderEntries() {
+  const frontmatter = {
+    type: 'finding',
+    title: 'order fixture',
+    scope: 'ws_a',
+    visibility: 'workspace-shared',
+    review: { state: 'approved' },
+    authority: 'agent-observed'
+  }
+  return ORDER_FIXTURE_PATHS.map((path) => [path, { ...frontmatter }, `BODY ${path}`])
+}
+
+test('selection and snapshot order use Unicode code points, not host locale', async () => {
+  const first = await fakeService(orderEntries()).getPack(context())
+  assert.deepEqual(
+    first.entries.map((entry) => entry.path),
+    CODE_POINT_ORDER
+  )
+
+  // This is deliberately not locale collation: English collation folds Ä/é
+  // before z, while code-point order places z first.
+  const collator = new Intl.Collator('en')
+  const collated = [...ORDER_FIXTURE_PATHS].sort((left, right) => collator.compare(left, right))
+  assert.notDeepEqual(collated, CODE_POINT_ORDER, 'fixture must distinguish locale from code-point order')
+  assert.equal(Math.sign(compareCodePoints('z.md', 'Ä.md')), -1)
+  assert.equal(Math.sign(collator.compare('z.md', 'Ä.md')), 1)
+
+  // Rebuild the hash from a literal code-point-ordered list: no locale-sensitive
+  // comparator participates in the expected value.
+  const byPath = new Map(first.entries.map((entry) => [entry.path, entry]))
+  assert.equal(
+    first.snapshot_hash,
+    sha256Json({
+      contract_version: MEMORYPACK_CONTRACT_VERSION,
+      scope: first.scope,
+      role: first.role,
+      entries: CODE_POINT_ORDER.map((path) => byPath.get(path))
+    })
+  )
+
+  const second = await fakeService(orderEntries()).getPack(context())
+  assert.equal(first.snapshot_hash, second.snapshot_hash, 'same entries, same hash across runs')
+  assert.deepEqual(
+    second.entries.map((entry) => entry.path),
+    CODE_POINT_ORDER
+  )
+})
+
+test('snapshot hash for the fixed code-point entry set is pinned', async () => {
+  const pack = await fakeService(orderEntries()).getPack(context())
+  assert.equal(pack.snapshot_hash, '75199874e639f3e6fd8f489583e55ef43ea9d7ec995fdcc4fc9d0941ca1e376e')
+})
+
+test('the committed cross-repo fixture reproduces its own snapshot hash', async () => {
+  const raw = await readFile(
+    new URL('./fixtures/memorypack.v1.1.dsh-memory.json', import.meta.url),
+    'utf8'
+  )
+  const pack = JSON.parse(raw)
+  const sorted = [...pack.entries].sort(
+    (left, right) =>
+      compareCodePoints(left.path, right.path) || compareCodePoints(left.revision, right.revision)
+  )
+  assert.equal(
+    pack.snapshot_hash,
+    sha256Json({
+      contract_version: MEMORYPACK_CONTRACT_VERSION,
+      scope: pack.scope,
+      role: pack.role,
+      entries: sorted
+    })
+  )
+  assert.equal(pack.snapshot_id, `mp_${pack.snapshot_hash.slice(0, 32)}`)
+  assert.equal(
+    pack.policy.cross_workspace,
+    pack.entries.some(
+      (entry) => entry.visibility === 'user-global' && entry.workspace_id !== pack.scope.workspace_id
+    )
+  )
+  assert.ok(pack.entries.every((entry) => entry.path === entry.path.normalize('NFC')))
 })
 
 test('untrusted or malformed context fails closed', async () => {

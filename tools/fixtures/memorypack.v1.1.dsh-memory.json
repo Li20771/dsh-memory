@@ -1,0 +1,80 @@
+{
+  "contract_version": "1.1.0",
+  "snapshot_id": "mp_5329e5bcc1955fb7aa40634bf65b5d8d",
+  "snapshot_hash": "5329e5bcc1955fb7aa40634bf65b5d8d98f3ca7150358c1140cefc79cac718a7",
+  "generated_at": "2026-10-30T00:00:00.000Z",
+  "read_only": true,
+  "scope": {
+    "workspace_id": "ws_a",
+    "episode_id": "ep_1"
+  },
+  "role": "researcher",
+  "run_id": "run_11111111111111111111111111111111",
+  "entries": [
+    {
+      "entry_id": "mem_17466761c8e3213c80bef5a3f1225d52",
+      "path": "workspaces/ws_a/memory/2026-10-30-episode.md",
+      "layer": "L4",
+      "type": "episode",
+      "title": "ws_a approved episode note",
+      "visibility": "episode-shared",
+      "workspace_id": "ws_a",
+      "episode_id": "ep_1",
+      "authority": "agent-observed",
+      "review_state": "approved",
+      "revision": "ce189ea5d10b",
+      "body": "\nAPPROVED_WS_A_EPISODE_CANARY\n",
+      "sources": [],
+      "sha256": "26ccc79de91cbb5fca91246ce9578652207de74f3ddc110bb98df969ab338378"
+    },
+    {
+      "entry_id": "mem_345f8877e04fb79a1d15caa9ce8852e6",
+      "path": "workspaces/ws_a/memory/2026-10-30-结论.md",
+      "layer": "L4",
+      "type": "memory",
+      "title": "unicode NFC path note",
+      "visibility": "workspace-shared",
+      "workspace_id": "ws_a",
+      "episode_id": null,
+      "authority": "curator",
+      "review_state": "approved",
+      "revision": "6064080d98e2",
+      "body": "\nUNICODE_NFC_PATH_CANARY\n",
+      "sources": [],
+      "sha256": "3b1cfeaf142e07e39c696367d9288eb9fdb5f762a2c880758a6c27f33d9f1f0a"
+    },
+    {
+      "entry_id": "mem_7ea40d8e1d2ad51e2adc17612eb11462",
+      "path": "memory/items/2026-10-30-user-global.md",
+      "layer": "KB",
+      "type": "knowledge",
+      "title": "explicit user-global note",
+      "visibility": "user-global",
+      "workspace_id": "global",
+      "episode_id": null,
+      "authority": "human-approved",
+      "review_state": "approved",
+      "revision": "d684688e52d8",
+      "body": "\nAPPROVED_USER_GLOBAL_CANARY\n",
+      "sources": [],
+      "sha256": "07b3aad835cf91bd66ef152975e43365e9b51780ceedb61d123f0d7dc896f653"
+    }
+  ],
+  "excluded": {
+    "pending": 1,
+    "rejected": 0,
+    "superseded": 0,
+    "restricted": 0,
+    "unmarked": 1,
+    "path_invalid": 0,
+    "entry_invalid": 0
+  },
+  "source": {
+    "vault": "dsh-memory",
+    "contract_version": "1.1.0"
+  },
+  "policy": {
+    "authorized_before_retrieval": true,
+    "cross_workspace": true
+  }
+}
