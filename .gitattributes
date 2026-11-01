@@ -12,6 +12,11 @@
 # them and the fixture stops matching what the reverse-engineering recorded.
 research/fixtures/**/*.md text eol=lf
 
+# The cross-repo MemoryPack fixture is copied verbatim into the Workbench tree
+# and compared byte for byte. Keep it LF so a Windows checkout does not rewrite
+# it and break that equality.
+tools/fixtures/*.json text eol=lf
+
 # The parser is still required to cope with CRLF *content* (notes written on
 # Windows outside git); tools/vault.test.mjs covers that with an inline CRLF
 # document rather than relying on the checkout.
