@@ -114,7 +114,7 @@ node tools/enable-workspace.mjs "D:\SecurityLab" --id ws_securitylab --episode e
 
 ## Fleet v3 读写边界
 
-### 可见性（MemoryPack v1.1.0）
+### 可见性（MemoryPack v1.2.0）
 
 **只有显式 `visibility: user-global` 的记录可以跨 workspace。** 不再按 L1/L3/KB
 类型自动推断全局。
@@ -171,10 +171,17 @@ const pack = await service.getPack(context) // deep-frozen, read_only: true
 ```
 
 `getPack` 只接受由 `createMemoryPackContext` 创建的 context（防止 model 自报身份）。
-接口没有 `write/update/delete/purge/revise`。pack 按 **`MEMORYPACK_V1_1.md`
-v1.1.0** 生成 `snapshot_id/hash`；hash 不含 `generated_at`/`run_id`。`excluded` 只
+接口没有 `write/update/delete/purge/revise`。pack 按 **`MEMORYPACK_V1_2.md`
+v1.2.0** 生成 `snapshot_id/hash`；hash 不含 `generated_at`/`run_id`。`excluded` 只
 统计授权切片内的 pending/rejected/superseded/restricted/unmarked/path_invalid/
-entry_invalid，foreign 记录不计数。
+entry_invalid/unspecified_layer，foreign 记录不计数。
+
+**层级解析（v1.2.0 起）：** `layer` 只能由显式规则确定——`type` 映射
+（`positioning`→L1、`workspace`→L2、`workflow`→L3、`memory`→L4、
+`knowledge|project|research|finding|decision|question|log|artifact|harvest`→KB）
+或显式合法的 `layer` 字段。**不存在"无法判定就归 KB"的兜底**：KB 是知识与研究产出
+的专用层，不是未分类记录的容器。无法解析的记录计入 `excluded.unspecified_layer`
+并被排除出 pack，而不是被静默贴上 KB 标签、排到队尾后在 `max_entries` 截断时优先丢弃。
 
 - `path` 使用 NFC 规范化的 Unicode 相对路径（`/` 分隔）；仍拒绝绝对路径、盘符、
   UNC、`\`、`.`/`..`、空段、控制字符、NUL 和 ADS 冒号。无效路径计入
