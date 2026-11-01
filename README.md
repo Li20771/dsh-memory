@@ -31,7 +31,12 @@ plugin/            DSH 插件本体（零依赖）
   lib/index.js       入口：四层注入、10 个工具、prompt 分节
   lib/workspace.js   工作区 marker 解析（fail-closed）
   lib/vault/         解析 / 链接 / 索引 / 检索 / 引用 / 可选向量
-  lib/memory/        准入策略 / 生命周期 / 笔记回写
+  lib/memory/        准入策略 / 生命周期 / 笔记回写 / 面板数据
+  lib/routes/        HTTP 路由：契约 / kb-api / kb-page / kb-open
+  lib/client.js      顶栏按钮与记忆面板的构建产物
+  client/            面板源码（i18n / api / model / dom / panel / button / apply）
+  ui/kb/             知识库只读页（index.html + app.js + app.css）
+  ui-contract.json   路由前缀唯一真源（host / 构建 / 页面三边消费）
 kb/                知识库（内容，随仓库走）
 tools/             测试与校验脚本
 docs/              设计文档与逐期交付报告
@@ -224,11 +229,67 @@ node tools/vault-check.mjs kb  # 人工检查某个 vault
 - `docs/superpowers/plans/2026-10-23-v3-final-design.md` —— 权威设计
 - 逐期交付报告：`2026-10-23-p1/…`、`p2`、`p3`、`p4`、`p5`、`p6-*`
 - `2026-10-24-adr-0001-embedding.md` —— 为什么引入向量、又为什么只让它扩召回
-- `2026-10-24-ui-memory-panel-spec.md` —— UI 阶段规格（未实现）
+- `2026-10-24-ui-memory-panel-spec.md` —— UI 阶段规格
+- `2026-10-27-ui-design-spec.md` —— UI 设计规格（实现依据）
+- `2026-10-27-ui-handoff.md` —— UI 阶段交接：插槽考古、遗留歧义与退让方案
 - `调研-2026-Agent记忆技术与文献综述.md` —— 470 篇文献的综述，每条设计决策的出处
 
 ---
 
-## 尚未实现
+## 界面（已实现）
 
-**UI 阶段**：DSH 顶栏的「记忆」面板 + 独立的知识库只读页面。规格已写，后端数据齐备，缺 `pinned` 之外的前端与插槽考古。
+DSH 顶栏的「记忆」面板与知识库入口均已实现并合入 `main`：
+
+- **顶栏「记忆」按钮**：注册进 `shell.overlay`，位置靠测量桌面 preload 的 menubar 右边界贴靠；有三级降级。
+- **面板**：四段只读（L1/L2/L4）+ L3 每行两个受治理动作（永久保留 / 彻底删除）+ 知识库入口。
+
+### 知识库入口打开的是 Obsidian，不是内置页面
+
+点「进入知识库」走 `POST {prefix}/kb/open`，把 **vault 交给 Obsidian 打开**：
+
+1. vault 不在 `obsidian.json` 里时先注册（幂等、首次备份、原子写入）。
+   **这一步会写用户的 Obsidian 配置文件**：首次修改前复制一份
+   `obsidian.json.dsh-memory.bak`，之后重复打开不再写。若 Obsidian 正占用该文件导致
+   写入失败，仍会尝试触发 URI 并把错误如实返回，不会假装成功；
+2. 触发 `obsidian://open?vault=<folder name>`，由操作系统路由到已运行的 Obsidian；
+3. **仅当** vault 路径不存在，或未安装 Obsidian（找不到注册文件）时，才回退到内置只读页。
+
+之所以走 Host 动作而不是前端直接开页：桌面 renderer 的 `setWindowOpenHandler` 对所有弹窗
+返回 `deny`，`will-navigate` 也被取消，前端根本打不开任何窗口。
+
+内置只读页（`<prefix>/kb/`，三栏 + 反向链接 + 引用五态徽标）保留为回退路径；若
+`window.open` 拿不到窗口句柄，面板会降级为内嵌页并在页头写明原因，而不是静默无反应。
+
+代码在 `plugin/client/`（构建产物 `plugin/lib/client.js`）、`plugin/ui/kb/` 与
+`plugin/lib/routes/`；`plugin/ui-contract.json` 是路由前缀的唯一真源，被 host 路由、
+构建期内联与知识库页三边消费，`tools/ui-contract.test.mjs` 断言三边一致。
+
+**验证范围（区分自动与手工，不混为一谈）：**
+
+- `tools/ui-contract.test.mjs` + `tools/ui-routes.test.mjs`：**42 个自动测试**，覆盖路由表、
+  跨边契约一致性、前缀单真源。
+- `tools/kb-open.test.mjs`：**16 个自动测试**，对知识库入口做**行为级**覆盖——不再只是
+  "源码里提到了 `obsidian://`"。覆盖 vault 缺失 / Obsidian 未安装的回退、已注册时不写入、
+  首次注册写入一次并留一份备份、重复打开幂等、registry 不可读/不可写时仍触发 URI 且如实
+  报错而不抛出、`open` 标志只留在新 vault 上、大小写不敏感去重，以及跨平台路径、vault id
+  与 URI 百分号编码。
+- `tools/ui-live-proof.mjs`：**手工运行的静态端到端证明**（不属于 `node --test` 套件）。
+  它用桩 `webServer` 按宿主方式挂载插件，驱动契约路由打到本机真实 vault。
+- **以上都不等于浏览器验证**：按钮落位、主题 token、Electron 实际渲染需要真实重启桌面后
+  人工确认，这一点脚本自己也写明。
+
+> **测试安全约束：** `openKnowledgeBase` 的默认参数是**用户的真实** `obsidian.json`。
+> `kb-open.test.mjs` 里所有依赖都必须经 `depsFor()` 构造，它把 registry 绑定到临时目录，
+> 并在拿到真实路径时直接抛错；另有一个守护测试断言真实 registry 在测试前后逐字节不变。
+> 这条约束是事后补的——开发这套测试时曾因漏注入而把临时 vault 写进了真实配置，已从备份还原。
+
+### 已知边界（不是缺陷，是显式记录的取舍）
+
+1. **HTTP 面没有调用方身份**：面板动作把 `cwd`/`session` 放在请求体里，角色由 `session`
+   是否在该工作区 `coordinators` 名单里决定。即 HTTP 面是**同机可信边界内的合作式控制**，
+   不是鉴权面——不要把它暴露到本机之外。根因见 `lib/workspace.js` 对 marker 模型的说明。
+2. **破坏性确认在界面侧**：`forget` 的二次确认由面板持有，路由恒按已确认处理。
+3. **macOS 落位未取证**：Windows 走测量 menubar 的路径；macOS/纯 web 走兜底，未实测。
+4. `shell.overlay` 是独立层叠上下文，重叠区画在 preload menubar 之下；对策是让两者不重叠。
+
+完整清单见 `plugin/README.md` 的「已知边界」。
