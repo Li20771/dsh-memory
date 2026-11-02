@@ -257,7 +257,7 @@ test('pack includes only the authorized slice, and excludes foreign records with
     const bodies = pack.entries.map((entry) => entry.body)
     const hasBody = (canary) => bodies.some((body) => body.includes(canary))
 
-    assert.equal(pack.contract_version, '1.2.0')
+    assert.equal(pack.contract_version, '1.1.0')
     assert.equal(pack.contract_version, MEMORYPACK_CONTRACT_VERSION)
     assert.equal(pack.read_only, true)
     assert.equal(pack.policy.authorized_before_retrieval, true)
@@ -302,8 +302,7 @@ test('pack includes only the authorized slice, and excludes foreign records with
       restricted: 1,
       unmarked: 1,
       path_invalid: 0,
-      entry_invalid: 0,
-      unspecified_layer: 0
+      entry_invalid: 0
     })
     assert.equal(pack.policy.cross_workspace, true, 'unscoped explicit user-global entries use the global sentinel')
     const positioning = pack.entries.find((entry) => entry.path === 'positioning.md')
@@ -399,8 +398,7 @@ test('max_entries truncates after authorization; foreign records cannot take a s
       restricted: 1,
       unmarked: 1,
       path_invalid: 0,
-      entry_invalid: 0,
-      unspecified_layer: 0
+      entry_invalid: 0
     })
   } finally {
     await rm(base, { recursive: true, force: true })
@@ -462,12 +460,12 @@ test('selection and snapshot order use Unicode code points, not host locale', as
 
 test('snapshot hash for the fixed code-point entry set is pinned', async () => {
   const pack = await fakeService(orderEntries()).getPack(context())
-  assert.equal(pack.snapshot_hash, 'e7630a045bf9f36d15ba87c736a68d552983badc488f86168d2079357bb1d897')
+  assert.equal(pack.snapshot_hash, '75199874e639f3e6fd8f489583e55ef43ea9d7ec995fdcc4fc9d0941ca1e376e')
 })
 
 test('the committed cross-repo fixture reproduces its own snapshot hash', async () => {
   const raw = await readFile(
-    new URL('./fixtures/memorypack.v1.2.dsh-memory.json', import.meta.url),
+    new URL('./fixtures/memorypack.v1.1.dsh-memory.json', import.meta.url),
     'utf8'
   )
   const pack = JSON.parse(raw)
@@ -564,78 +562,6 @@ test('createPackRef is stable and read-only', async () => {
     assert.deepEqual(first, second)
     assert.match(first.snapshot_id, /^mp_[a-f0-9]{32}$/)
     assert.match(first.snapshot_hash, /^[a-f0-9]{64}$/)
-  } finally {
-    await rm(base, { recursive: true, force: true })
-  }
-})
-
-test('an unresolvable layer is counted as unspecified_layer, never relabelled as KB', async () => {
-  const base = await mkdtemp(join(tmpdir(), 'dsh-layer-'))
-  const vaultRoot = join(base, 'kb')
-  const approved = (extra = {}) => ({
-    scope: 'ws_a',
-    visibility: 'workspace-shared',
-    review: { state: 'approved' },
-    ...extra
-  })
-  try {
-    // Authorized, in-slice, but no `type` and no `layer`.
-    await put(vaultRoot, 'workspaces/ws_a/memory/no-type.md', approved(), 'NO_TYPE_CANARY')
-    // Authorized, but an unknown `type` value.
-    await put(
-      vaultRoot,
-      'workspaces/ws_a/memory/unknown-type.md',
-      approved({ type: 'recipe' }),
-      'UNKNOWN_TYPE_CANARY'
-    )
-    // Authorized, but an invalid explicit `layer`.
-    await put(
-      vaultRoot,
-      'workspaces/ws_a/memory/bad-layer.md',
-      approved({ type: 'mystery', layer: 'L7' }),
-      'BAD_LAYER_CANARY'
-    )
-    // An explicit valid `layer` is still honoured even with an unknown type.
-    await put(
-      vaultRoot,
-      'workspaces/ws_a/memory/explicit-layer.md',
-      approved({ type: 'mystery', layer: 'L3' }),
-      'EXPLICIT_LAYER_CANARY'
-    )
-    // Control: a real KB type still resolves to KB.
-    await put(
-      vaultRoot,
-      'projects/p1/findings/real.md',
-      approved({ type: 'finding', title: 'real finding' }),
-      'REAL_KB_CANARY'
-    )
-
-    const service = await serviceFor(vaultRoot)
-    const pack = await service.getPack(context())
-    const bodies = pack.entries.map((entry) => entry.body)
-    // Rendered notes wrap the body in newlines, so match by inclusion.
-    const entryFor = (canary) => pack.entries.find((entry) => entry.body.includes(canary))
-
-    // None of the unresolvable records may surface, and none may be labelled KB.
-    for (const canary of ['NO_TYPE_CANARY', 'UNKNOWN_TYPE_CANARY', 'BAD_LAYER_CANARY']) {
-      assert.ok(!bodies.includes(canary), `${canary} must not enter the pack`)
-    }
-    const kbPaths = pack.entries.filter((e) => e.layer === 'KB').map((e) => e.path)
-    assert.ok(!kbPaths.includes('workspaces/ws_a/memory/no-type.md'), 'no-type must not become KB')
-    assert.ok(!kbPaths.includes('workspaces/ws_a/memory/unknown-type.md'), 'unknown type must not become KB')
-    assert.ok(!kbPaths.includes('workspaces/ws_a/memory/bad-layer.md'), 'invalid layer must not become KB')
-
-    // The three unresolvable records are counted under their own bucket...
-    assert.equal(pack.excluded.unspecified_layer, 3)
-    // ...and are NOT folded into entry_invalid.
-    assert.equal(pack.excluded.entry_invalid, 0)
-
-    // An explicit valid layer still resolves; a genuine KB type is still KB.
-    assert.equal(entryFor('EXPLICIT_LAYER_CANARY')?.layer, 'L3')
-    assert.equal(entryFor('REAL_KB_CANARY')?.layer, 'KB')
-
-    // KB must contain only real knowledge/research output in this vault.
-    assert.deepEqual(kbPaths.sort(), ['projects/p1/findings/real.md'])
   } finally {
     await rm(base, { recursive: true, force: true })
   }
