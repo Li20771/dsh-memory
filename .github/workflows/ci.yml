@@ -1,0 +1,28 @@
+name: memory
+
+on:
+  push:
+    paths:
+      - "plugin/**"
+      - "tools/**"
+      - "docs/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "plugin/**"
+      - "tools/**"
+      - "docs/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Offline memory tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run offline tests
+        run: node --test tools/*.test.mjs
