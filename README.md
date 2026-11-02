@@ -207,6 +207,19 @@ node tools/vault-check.mjs kb  # 人工检查某个 vault
 
 `tools/conformance.test.mjs` 会拿 `tools/spec-assertions.json`（逆向 Obsidian 1.13.7 得到的 46 条断言）逐条跑真代码，输出三类结论：**通过 / 已记录偏离（附理由）/ 失败**。偏离一旦开始通过也会报警，防止清单腐化。
 
+### 独立 MemoryPack service（stdio JSON-RPC）
+
+`tools/memorypack-service.mjs` 把只读 MemoryPack producer 作为独立进程提供给
+Workbench/Fleet 部署侧；服务协议见
+[`docs/MEMORYPACK_SERVICE_V1.md`](docs/MEMORYPACK_SERVICE_V1.md)。它只接受
+host 生成的受信 context，提供 `getPack`/`createPackRef`，没有写入、迁移或任意
+路径接口；vault root 与 workspace registry 来自启动参数，不来自模型。
+
+```powershell
+node tools/memorypack-service.mjs --vault-root <vault> --workspace ws_a --episode ep_1
+node --test tools/memorypack-service.test.mjs
+```
+
 ---
 
 ## 三条硬规则
